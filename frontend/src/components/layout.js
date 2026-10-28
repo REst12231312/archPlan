@@ -3,6 +3,7 @@ const navigation = [
   { id: 'templates', href: '/templates.html', label: 'Шаблоны' },
   { id: 'editor', href: '/editor.html', label: 'Конструктор' },
   { id: 'estimate', href: '/estimate.html', label: 'Смета' },
+  { id: 'account', href: '/account.html', label: 'Мои проекты' },
   { id: 'about', href: '/about.html', label: 'О сервисе' },
 ]
 
