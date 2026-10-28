@@ -1,0 +1,11 @@
+{
+  "name": "archplan-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-sqlite src/server.js",
+    "dev": "node --experimental-sqlite --watch src/server.js",
+    "test": "node --experimental-sqlite --test"
+  },
+  "engines": { "node": ">=24" }
+}
