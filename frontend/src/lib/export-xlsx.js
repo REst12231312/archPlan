@@ -1,5 +1,3 @@
-import { calculateEstimate, estimateWallArea } from './estimate.js'
-
 const encoder = new TextEncoder()
 const MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -25,23 +23,26 @@ function numberCell(reference, value, style = 0, formula = '') {
 }
 
 function worksheetXml(data) {
-  const estimate = calculateEstimate(data)
-  const wallEstimate = estimateWallArea(data.floorArea, data.ceilingHeight)
+  const rowsData = data.items.map((item, index) => {
+    const row = index + 7
+    return `<row r="${row}">${textCell(`A${row}`, item.name)}${numberCell(`B${row}`, item.needed, 3)}${textCell(`C${row}`, `${item.packages} уп. · ${item.quantity} ${item.unit}`)}${numberCell(`D${row}`, item.price, 3)}${numberCell(`E${row}`, item.cost, 4)}</row>`
+  })
+  const laborRow = data.items.length + 7
+  const deliveryRow = laborRow + 1
+  const totalRow = deliveryRow + 1
   const rows = [
     `<row r="1" ht="30" customHeight="1">${textCell('A1', 'Смета на материалы для ремонта', 1)}</row>`,
-    '<row r="2"/>',
-    `<row r="3">${textCell('A3', 'Площадь пола, м²')}${numberCell('B3', data.floorArea, 3)}</row>`,
-    `<row r="4">${textCell('A4', 'Площадь стен, м²')}${numberCell('B4', data.wallArea, 3)}</row>`,
-    `<row r="5">${textCell('A5', 'Высота стен, м')}${numberCell('B5', data.ceilingHeight, 3)}${textCell('C5', `Автооценка площади стен: ${wallEstimate.toFixed(1)} м²`)}</row>`,
-    '<row r="6"/>',
-    `<row r="7" ht="24" customHeight="1">${['Материал', 'Количество', 'Ед.', 'Цена за единицу, ₸', 'Стоимость, ₸'].map((value, index) => textCell(`${columnName(index)}7`, value, 2)).join('')}</row>`,
-    `<row r="8">${textCell('A8', 'Напольное покрытие')}${numberCell('B8', estimate.floorQuantity, 4, 'ROUNDUP(B3*1.1,1)')}${textCell('C8', 'м²')}${numberCell('D8', data.floorPrice, 3)}${numberCell('E8', estimate.floorCost, 4, 'B8*D8')}</row>`,
-    `<row r="9">${textCell('A9', 'Краска для стен')}${numberCell('B9', estimate.paintQuantity, 4, 'ROUNDUP(B4/10*2*1.1,0)')}${textCell('C9', 'л')}${numberCell('D9', data.paintPrice, 3)}${numberCell('E9', estimate.paintCost, 4, 'B9*D9')}</row>`,
-    `<row r="10">${textCell('A10', 'Грунтовка')}${numberCell('B10', estimate.primerQuantity, 4, 'ROUNDUP(B4/10*1.1,0)')}${textCell('C10', 'л')}${numberCell('D10', data.primerPrice, 3)}${numberCell('E10', estimate.primerCost, 4, 'B10*D10')}</row>`,
-    `<row r="11">${textCell('A11', 'Итого', 5)}${textCell('B11', '', 5)}${textCell('C11', '', 5)}${textCell('D11', '', 5)}${numberCell('E11', estimate.total, 5, 'SUM(E8:E10)')}</row>`,
+    `<row r="2">${textCell('A2', data.project.name)}${textCell('C2', data.project.region)}</row>`,
+    `<row r="3">${textCell('A3', 'Пол, м²')}${numberCell('B3', data.areas.floor, 3)}${textCell('C3', 'Стены, м²')}${numberCell('D3', data.areas.walls, 3)}${textCell('E3', `Потолок, м²: ${data.areas.ceiling.toFixed(1)}`)}</row>`,
+    '<row r="4"/>',
+    `<row r="5" ht="24" customHeight="1">${['Материал', 'Расчётная потребность', 'Закупка', 'Цена упаковки, ₸', 'Стоимость, ₸'].map((value, index) => textCell(`${columnName(index)}5`, value, 2)).join('')}</row>`,
+    ...rowsData,
+    `<row r="${laborRow}">${textCell(`A${laborRow}`, 'Работы')}${numberCell(`E${laborRow}`, data.labor)}</row>`,
+    `<row r="${deliveryRow}">${textCell(`A${deliveryRow}`, 'Доставка')}${numberCell(`E${deliveryRow}`, data.delivery)}</row>`,
+    `<row r="${totalRow}">${textCell(`A${totalRow}`, 'Итого, ₸', 5)}${textCell(`B${totalRow}`, '', 5)}${textCell(`C${totalRow}`, '', 5)}${textCell(`D${totalRow}`, '', 5)}${numberCell(`E${totalRow}`, data.total + data.labor + data.delivery, 5)}</row>`,
   ]
 
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="7" topLeftCell="A8" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="2" width="16" customWidth="1"/><col min="3" max="3" width="9" customWidth="1"/><col min="4" max="4" width="22" customWidth="1"/><col min="5" max="5" width="19" customWidth="1"/></cols><sheetData>${rows.join('')}</sheetData><mergeCells count="1"><mergeCell ref="A1:E1"/></mergeCells><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>`
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="22" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/><col min="5" max="5" width="20" customWidth="1"/></cols><sheetData>${rows.join('')}</sheetData><mergeCells count="1"><mergeCell ref="A1:E1"/></mergeCells><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>`
 }
 
 const files = data => [
