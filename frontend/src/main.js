@@ -10,6 +10,7 @@ import { renderTemplatesPage, initTemplatesPage } from './pages/templates.js'
 import { renderEditorPage, initEditorPage } from './pages/editor.js'
 import { renderEstimatePage, initEstimatePage } from './pages/estimate.js'
 import { renderAboutPage, initAboutPage } from './pages/about.js'
+import { renderAccountPage, initAccountPage } from './pages/account.js'
 
 const pages = {
   home: [renderHomePage, initHomePage],
@@ -17,6 +18,7 @@ const pages = {
   editor: [renderEditorPage, initEditorPage],
   estimate: [renderEstimatePage, initEstimatePage],
   about: [renderAboutPage, initAboutPage],
+  account: [renderAccountPage, initAccountPage],
 }
 
 const pageName = document.body.dataset.page || 'home'
