@@ -29,7 +29,7 @@ export function renderTemplatesPage() {
         <div class="page-section-heading"><div><span class="gallery-kicker">ГАЛЕРЕЯ ПЛАНИРОВОК</span><h2>Готовые шаблоны</h2></div><span class="gallery-count">Всего вариантов: ${ROOM_TEMPLATES.length}</span></div>
         <div class="template-grid">${ROOM_TEMPLATES.map(templateCard).join('')}</div>
       </section>
-      <section class="template-help section-wrap"><span class="help-icon" aria-hidden="true">✳</span><div><h2>Нужен свой вариант?</h2><p>Перейдите в конструктор, чтобы нарисовать комнаты и стены на чистом поле.</p></div><a href="/editor.html" class="text-link">Перейти к редактору <span aria-hidden="true">→</span></a></section>
+      <section class="template-help section-wrap"><span class="help-icon" aria-hidden="true">✳</span><div><h2>Нужен свой вариант?</h2><p>Создайте план с нуля, укажите размеры комнат и добавьте окна и двери.</p></div><a href="/editor.html" class="text-link">Перейти к редактору <span aria-hidden="true">→</span></a></section>
     </main>`
 }
 
