@@ -21,7 +21,7 @@ export function renderHomePage() {
             </svg>
             <div class="plan-legend"><span><i class="legend-line"></i> Стены</span><span><i class="legend-window"></i> Помещения</span><span>Эскиз планировки</span></div>
           </div>
-          <div class="home-card-note"><span class="note-check">✓</span><span><strong>План и смета рядом</strong><small>Проверяйте идею и бюджет по ходу работы</small></span><a href="/estimate.html" aria-label="Открыть смету">↗</a></div>
+          <div class="home-card-note"><span class="note-check">✓</span><span><strong>План и смета рядом</strong><small>Проверяйте идею и бюджет по ходу работы</small></span><a href="/editor.html?panel=estimate" aria-label="Открыть смету на экране планировки">↗</a></div>
         </div>
       </section>
 
@@ -30,7 +30,7 @@ export function renderHomePage() {
         <div class="home-feature-grid">
           <a class="home-feature" href="/templates.html"><span class="home-feature-num">01 / ПЛАНИРОВКА</span><span class="home-feature-icon icon-plan" aria-hidden="true">⌗</span><h3>Нарисуйте пространство</h3><p>Начните с чистого листа или выберите готовую планировку и адаптируйте её под себя.</p><span class="feature-link">Перейти к планировкам <b>→</b></span></a>
           <a class="home-feature" href="/editor.html"><span class="home-feature-num">02 / КОНСТРУКТОР</span><span class="home-feature-icon icon-draw" aria-hidden="true">／</span><h3>Задайте размеры комнат</h3><p>Укажите длину, ширину и высоту, добавьте окна и двери. Площади обновятся автоматически.</p><span class="feature-link">Открыть конструктор <b>→</b></span></a>
-          <a class="home-feature" href="/estimate.html"><span class="home-feature-num">03 / СМЕТА</span><span class="home-feature-icon icon-cost" aria-hidden="true">₸</span><h3>Рассчитайте упаковки</h3><p>Увидьте потребность с запасом, число упаковок, цены в тенге и общую сумму.</p><span class="feature-link">Рассчитать смету <b>→</b></span></a>
+          <a class="home-feature" href="/editor.html?panel=estimate"><span class="home-feature-num">03 / СМЕТА</span><span class="home-feature-icon icon-cost" aria-hidden="true">₸</span><h3>Рассчитайте упаковки</h3><p>Увидьте потребность с запасом, число упаковок, цены в тенге и общую сумму прямо рядом с планом.</p><span class="feature-link">Рассчитать смету <b>→</b></span></a>
         </div>
       </section>
 
