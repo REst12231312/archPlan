@@ -1,27 +1,28 @@
-import { calculateProjectEstimate, formatMoney, formatQuantity } from '../lib/estimate.js'
+import { MATERIALS, calculateProjectEstimate, formatMoney, formatQuantity } from '../lib/estimate.js'
 import { apiRequest, ACTIVE_PROJECT_KEY, hasSession } from '../lib/api.js'
 import { projectAreas, readProject } from '../lib/project.js'
 
 const SETTINGS_KEY = 'archplan:estimate-settings:v2'
 const areaLabel = { floor: 'Площадь пола', walls: 'Площадь стен', ceiling: 'Площадь потолка' }
 
-export function renderEstimatePage() {
-  return `<main class="page-main estimate-page project-estimate-page">
-    <section class="page-hero section-wrap estimate-page-hero"><div class="eyebrow"><span class="eyebrow-dot"></span> ПРОЗРАЧНЫЙ РАСЧЁТ</div><h1>Что купить<br><span class="serif-accent">для ремонта.</span></h1><p>Площади берутся из проекта. Количество округляется до целых упаковок, цены можно заменить на свои.</p></section>
-    <section class="estimate-page-content section-wrap"><div class="estimate-tool estimate-page-tool project-estimate-tool" aria-labelledby="estimate-title">
-      <div class="estimate-tool-heading"><div><span class="gallery-kicker">${readProject().region.toUpperCase()} · ОРИЕНТИРОВОЧНЫЕ ЦЕНЫ</span><h2 id="estimate-title">Материалы и стоимость</h2><p id="estimate-project-name"></p></div><div class="estimate-total-badge"><span>ВСЕГО ПО МАТЕРИАЛАМ</span><strong id="estimate-grand-total">—</strong></div></div>
+export function renderEstimatePanel() {
+  return `<div class="estimate-tool project-estimate-tool" aria-labelledby="estimate-title">
+      <div class="estimate-tool-heading"><div><span class="gallery-kicker" id="estimate-region">${readProject().region.toUpperCase()} · ОРИЕНТИРОВОЧНЫЕ ЦЕНЫ</span><h2 id="estimate-title">Материалы и стоимость</h2><p id="estimate-project-name"></p></div><div class="estimate-total-badge"><span>ВСЕГО ПО МАТЕРИАЛАМ</span><strong id="estimate-grand-total">—</strong></div></div>
       <div class="estimate-area-strip" id="estimate-areas"></div>
       <div class="estimate-table-wrap"><table class="estimate-table"><thead><tr><th>Материал</th><th>Расчёт с запасом</th><th>Закупка</th><th>Цена упаковки</th><th>Стоимость</th></tr></thead><tbody id="estimate-rows"></tbody><tfoot><tr><th colspan="4">Итого по материалам</th><th id="estimate-summary-total">—</th></tr></tfoot></table></div>
       <div class="estimate-extra-costs"><div><strong>Не включено в материалы</strong><p>Работы мастеров, доставка и расходники добавляются отдельными строками. Сейчас это ориентир только по основным покрытиям.</p></div><label>Работы, ₸ <input id="labor-cost" type="number" min="0" step="1000" value="0"></label><label>Доставка, ₸ <input id="delivery-cost" type="number" min="0" step="500" value="0"></label></div>
-      <p class="estimate-disclaimer">Формула: площадь × расход × слои × (1 + запас), затем округление вверх до упаковки. Ламинат: пачка 2,2 м². Краска: 10 м² на литр за слой, ведро 9 л. Грунтовка: 10 м² на литр, канистра 10 л. Цены ориентировочные, не связаны с каталогом магазина.</p>
+      <p class="estimate-disclaimer">Формула: площадь × расход × слои × (1 + запас), затем округление вверх до упаковки. Цены ориентировочные; укажите стоимость из вашего магазина.</p>
       <div class="estimate-export-row"><p>Сохраните смету в аккаунте, чтобы зафиксировать цены и версию проекта.</p><div class="estimate-export-actions"><button type="button" class="editor-action" data-action="save-estimate">Сохранить смету</button><button type="button" class="editor-download" data-action="download-pdf">Скачать PDF <span aria-hidden="true">↓</span></button><button type="button" class="editor-download" data-action="download-xlsx">Скачать Excel <span aria-hidden="true">↓</span></button></div></div><p class="export-status" id="estimate-export-status" role="status" aria-live="polite"></p><div class="saved-estimates" id="saved-estimates"></div>
-    </div><div class="estimate-next-step"><span>Хотите изменить геометрию?</span><a href="/editor.html">Вернуться к плану <span aria-hidden="true">→</span></a></div></section>
-  </main>`
+    </div>`
+}
+
+export function renderEstimatePage() {
+  return `<main class="page-main project-estimate-page">${renderEstimatePanel()}</main>`
 }
 
 export async function initEstimatePage() {
-  const project = readProject()
-  const areas = projectAreas(project)
+  let project = readProject()
+  let areas = projectAreas(project)
   const $ = selector => document.querySelector(selector)
   let saved = {}
   try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {} } catch { saved = {} }
@@ -30,8 +31,12 @@ export async function initEstimatePage() {
     const response = await apiRequest('/materials')
     catalog = response.items.map(item => ({ ...item, pack: item.packageSize, price: item.priceKzt, waste: item.defaultWaste, note: item.role === 'primer' ? `канистра ${item.packageSize} л · ${item.coats} слой` : item.unit === 'м²' ? `упаковка ${item.packageSize} м²` : `ведро ${item.packageSize} л · ${item.coats} слоя` }))
   } catch { /* The estimator remains usable with the bundled local catalogue. */ }
-  $('#estimate-project-name').textContent = `${project.name} · ${project.rooms.length} ${project.rooms.length === 1 ? 'помещение' : 'помещения'}`
-  $('#estimate-areas').innerHTML = Object.entries(areaLabel).map(([key, label]) => `<div><span>${label}</span><strong>${formatQuantity(areas[key])} м²</strong></div>`).join('')
+  const refreshProjectSummary = () => {
+    $('#estimate-region').textContent = `${project.region.toUpperCase()} · ОРИЕНТИРОВОЧНЫЕ ЦЕНЫ`
+    $('#estimate-project-name').textContent = `${project.name} · ${project.rooms.length} ${project.rooms.length === 1 ? 'помещение' : 'помещения'}`
+    $('#estimate-areas').innerHTML = Object.entries(areaLabel).map(([key, label]) => `<div><span>${label}</span><strong>${formatQuantity(areas[key])} м²</strong></div>`).join('')
+  }
+  refreshProjectSummary()
   const defaults = { floor: 'laminate-standard', walls: 'paint-wall-standard', ceiling: 'paint-ceiling-standard', primer: 'primer-standard' }
   const settings = { prices: { ...saved.prices }, wastes: { ...saved.wastes }, assignments: { ...defaults, ...saved.assignments }, labor: Number(saved.labor) || 0, delivery: Number(saved.delivery) || 0 }
   $('#labor-cost').value = settings.labor
@@ -50,6 +55,12 @@ export async function initEstimatePage() {
     $('.estimate-total-badge span').textContent = settings.labor || settings.delivery ? 'МАТЕРИАЛЫ, РАБОТЫ И ДОСТАВКА' : 'ВСЕГО ПО МАТЕРИАЛАМ'
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
   }
+  window.addEventListener('archplan:project-updated', () => {
+    project = readProject()
+    areas = projectAreas(project)
+    refreshProjectSummary()
+    render()
+  })
   $('#estimate-rows').addEventListener('change', event => {
     const input = event.target
     if (input.dataset.assignment) settings.assignments[input.dataset.assignment] = input.value
