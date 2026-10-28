@@ -51,7 +51,7 @@ export function initEditorPage() {
     clearTimeout(cloudSaveTimer)
     cloudSaveTimer = setTimeout(async () => {
       try {
-        await apiRequest(`/projects/${cloudId}`, { method: 'PUT', body: { project } })
+        await apiRequest(`/projects/${cloudId}`, { method: 'PUT', body: { project: { name: project.name, region: project.region, rooms: project.rooms } } })
         $('#project-save-state').textContent = 'Сохранено в аккаунте'
       } catch (error) { $('#project-save-state').textContent = `Сохранено локально · ${error.message}` }
     }, 700)
