@@ -1,237 +1,80 @@
 import { findTemplate } from '../data/templates.js'
+import { DEFAULT_PROJECT, PROJECT_KEY, projectAreas, readProject, saveProject } from '../lib/project.js'
 
-const AREA_KEY = 'archplan:floor-area'
-const CUSTOM_PLAN_KEY = 'archplan:plan:custom'
+const safe = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
+const num = value => Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
 
 export function renderEditorPage() {
-  return `
-    <main class="page-main editor-page">
-      <section class="editor-page-heading section-wrap">
-        <div><div class="eyebrow"><span class="eyebrow-dot"></span> КОНСТРУКТОР ПЛАНИРОВОК</div><h1 id="project-title">Новый эскиз</h1><p>Добавляйте помещения и внутренние стены. Эскиз можно скачать или продолжить позже.</p></div>
-        <a class="text-link" href="/templates.html">Выбрать другой шаблон <span aria-hidden="true">↗</span></a>
-      </section>
-      <section class="editor-workspace section-wrap">
-        <div class="editor-panel">
-          <div class="editor-heading"><div><span class="gallery-kicker">РАБОЧЕЕ ПОЛЕ</span><h2 id="editor-subtitle">Чистый лист</h2></div><span class="editor-room-count" id="room-count">Помещений: 0</span></div>
-          <div class="editor-toolbar" role="toolbar" aria-label="Инструменты редактора">
-            <div class="tool-group"><button type="button" class="tool-button is-active" data-tool="wall" aria-pressed="true"><span aria-hidden="true">／</span> Стена</button><button type="button" class="tool-button" data-tool="room" aria-pressed="false"><span aria-hidden="true">▱</span> Комната</button><button type="button" class="tool-button" data-tool="erase" aria-pressed="false"><span aria-hidden="true">⌫</span> Удалить</button></div>
-            <div class="tool-group tool-actions"><button type="button" class="editor-action" data-action="undo" disabled>↶ Отменить</button><button type="button" class="editor-action" data-action="clear">Очистить</button><button type="button" class="editor-download" data-action="download-pdf">Скачать PDF <span aria-hidden="true">↓</span></button></div>
-          </div>
-          <div class="editor-canvas-wrap"><svg class="drawing-board" id="drawing-board" viewBox="0 0 600 400" role="group" aria-label="Рабочая область планировки. Перетаскивайте указатель, чтобы нарисовать стену или комнату."><defs><pattern id="editor-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#e5e8e0" stroke-width="1"/></pattern><pattern id="editor-grid-bold" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#editor-grid)"/><path d="M100 0H0V100" fill="none" stroke="#d5dbd1" stroke-width="1.2"/></pattern></defs><rect class="board-background" x="0" y="0" width="600" height="400" fill="url(#editor-grid-bold)"/><g id="drawing-items"></g><g id="drawing-preview"></g></svg></div>
-          <div class="editor-footer"><p id="editor-hint">Перетащите указатель по сетке, чтобы провести стену.</p><span class="editor-scale">Сетка · условный шаг</span></div><p class="export-status" id="pdf-export-status" role="status" aria-live="polite"></p>
-        </div>
-        <aside class="editor-sidebar">
-          <div class="sidebar-panel"><span class="gallery-kicker">ПАРАМЕТРЫ ПРОЕКТА</span><label class="sidebar-field"><span>Площадь для сметы</span><span class="input-with-unit"><input id="project-area" type="number" min="1" max="1000" step="0.1" value="38" inputmode="decimal"><i>м²</i></span></label><p>Эскиз пока не связан с масштабом. Укажите фактическую площадь для расчёта материалов.</p></div>
-          <div class="sidebar-panel sidebar-summary"><span class="gallery-kicker">СЛЕДУЮЩИЙ ШАГ</span><h2>Оцените покупки</h2><p>Укажите цены и получите ориентировочный расход напольного покрытия, краски и грунтовки.</p><a class="button button-primary" href="/estimate.html">Перейти к смете <span aria-hidden="true">→</span></a></div>
-          <p class="draft-note"><span aria-hidden="true">✓</span> Эскиз сохраняется в этом браузере автоматически.</p>
-        </aside>
-      </section>
-    </main>`
+  return `<main class="page-main editor-page project-editor">
+    <section class="editor-page-heading section-wrap"><div><div class="eyebrow"><span class="eyebrow-dot"></span> ПЛАН ПРОЕКТА</div><h1>Размеры, планировка<br><span class="serif-accent">и проёмы.</span></h1><p>Задайте размеры комнаты. Площади для сметы обновятся автоматически.</p></div><a class="text-link" href="/estimate.html">Открыть смету <span aria-hidden="true">↗</span></a></section>
+    <section class="section-wrap project-editor-grid">
+      <div class="editor-panel project-panel">
+        <div class="editor-heading"><div><span class="gallery-kicker">ПРОЕКТ</span><h2>Данные помещения</h2></div><span class="project-save-state" id="project-save-state" role="status">Сохранено</span></div>
+        <div class="project-fields"><label class="sidebar-field"><span>Название проекта</span><input id="project-name" maxlength="64"></label><label class="sidebar-field"><span>Регион</span><select id="project-region"><option>Алматы</option><option>Астана</option><option>Шымкент</option><option>Караганда</option><option>Другой</option></select></label></div>
+        <div class="room-switcher"><label class="sidebar-field"><span>Помещение</span><select id="room-select"></select></label><button class="button button-outline" id="add-room" type="button">＋ Добавить комнату</button></div>
+        <div class="room-dimensions"><label class="sidebar-field"><span>Название</span><input id="room-name" maxlength="40"></label><label class="sidebar-field"><span>Длина</span><span class="input-with-unit"><input id="room-length" type="number" min="0.1" max="50" step="0.1"><i>м</i></span></label><label class="sidebar-field"><span>Ширина</span><span class="input-with-unit"><input id="room-width" type="number" min="0.1" max="50" step="0.1"><i>м</i></span></label><label class="sidebar-field"><span>Высота стен</span><span class="input-with-unit"><input id="room-height" type="number" min="1.5" max="8" step="0.1"><i>м</i></span></label></div>
+        <div class="editor-heading opening-heading"><div><span class="gallery-kicker">ОКНА И ДВЕРИ</span><h2>Проёмы вычитаются из площади стен</h2></div></div>
+        <div class="opening-list" id="opening-list"></div>
+        <form class="opening-form" id="opening-form"><label class="sidebar-field"><span>Тип</span><select id="opening-type"><option value="door">Дверь</option><option value="window">Окно</option></select></label><label class="sidebar-field"><span>Стена</span><select id="opening-wall"><option value="north">Северная</option><option value="east">Восточная</option><option value="south">Южная</option><option value="west">Западная</option></select></label><label class="sidebar-field"><span>Ширина</span><span class="input-with-unit"><input id="opening-width" type="number" min="0.2" max="8" step="0.1" value="0.9"><i>м</i></span></label><label class="sidebar-field"><span>Высота</span><span class="input-with-unit"><input id="opening-height" type="number" min="0.2" max="5" step="0.1" value="2.1"><i>м</i></span></label><button class="button button-outline" type="submit">Добавить проём</button></form>
+        <div class="room-actions"><button type="button" class="text-link" id="delete-room">Удалить помещение</button><button type="button" class="editor-action" id="save-version">Сохранить версию</button></div>
+      </div>
+      <aside class="project-side-column"><div class="editor-panel plan-preview-panel"><div class="editor-heading"><div><span class="gallery-kicker">2D-ПЛАН</span><h2 id="plan-room-title">Гостиная</h2></div><span class="editor-scale">размеры в метрах</span></div><div class="plan-preview" id="plan-preview"></div><div class="area-cards" id="area-cards"></div><p class="estimate-method">Расчёт стен: периметр комнаты × высота − площадь окон и дверей. Межкомнатные стены пока не учитываются.</p></div>
+        <div class="sidebar-panel version-panel"><span class="gallery-kicker">ИСТОРИЯ ПРОЕКТА</span><h2>Сохранённые версии</h2><div id="version-list" class="version-list"></div><p>Черновик сохраняется автоматически в этом браузере.</p></div><a class="button button-primary project-estimate-cta" href="/estimate.html">Перейти к смете <span aria-hidden="true">→</span></a></aside>
+    </section>
+  </main>`
 }
 
 export function initEditorPage() {
-  const board = document.querySelector('#drawing-board')
-  const itemsLayer = document.querySelector('#drawing-items')
-  const previewLayer = document.querySelector('#drawing-preview')
-  const roomCount = document.querySelector('#room-count')
-  const undoButton = document.querySelector('[data-action="undo"]')
-  const areaInput = document.querySelector('#project-area')
-  const queryTemplate = findTemplate(new URLSearchParams(location.search).get('template'))
-  const storageKey = queryTemplate ? `archplan:plan:${queryTemplate.id}` : CUSTOM_PLAN_KEY
-
-  let savedPlan = null
-  try {
-    savedPlan = JSON.parse(localStorage.getItem(storageKey) || 'null')
-  } catch {
-    savedPlan = null
+  let project = readProject()
+  const selectedTemplate = findTemplate(new URLSearchParams(location.search).get('template'))
+  if (selectedTemplate) {
+    const shapeArea = selectedTemplate.rooms.reduce((total, item) => total + item.w * item.h, 0)
+    const scale = Math.sqrt(selectedTemplate.area / shapeArea)
+    project = { name: selectedTemplate.name, region: project.region, versions: [], rooms: selectedTemplate.rooms.map((item, index) => ({ id: `template-${selectedTemplate.id}-${index}`, name: item.label, length: Math.round(item.w * scale * 100) / 100, width: Math.round(item.h * scale * 100) / 100, height: 2.7, openings: [] })) }
+    saveProject(project)
+    history.replaceState(null, '', '/editor.html')
   }
-  let planItems = savedPlan?.items || queryTemplate?.rooms.map(room => ({ kind: 'room', ...room })) || []
-  let history = []
-  let activeTool = 'wall'
-  let drawStart = null
-  let previewElement = null
-  let area = Number(savedPlan?.area) || queryTemplate?.area || Number(localStorage.getItem(AREA_KEY)) || 38
-
-  areaInput.value = area
-  document.querySelector('#project-title').textContent = queryTemplate?.name || savedPlan?.title || 'Новый эскиз'
-  document.querySelector('#editor-subtitle').textContent = queryTemplate ? `${queryTemplate.name} · ${queryTemplate.area} м²` : 'Чистый лист'
-
-  function saveDraft() {
-    const title = queryTemplate?.name || 'Мой эскиз'
-    const draft = { title, area: Number(areaInput.value) || 0, items: planItems }
-    localStorage.setItem(storageKey, JSON.stringify(draft))
-    const parsedArea = Number(areaInput.value)
-    if (parsedArea > 0) localStorage.setItem(AREA_KEY, String(parsedArea))
-  }
-
-  function renderPlan() {
-    itemsLayer.innerHTML = planItems.map((item, index) => {
-      if (item.kind === 'room') {
-        const cx = item.x + item.w / 2
-        const cy = item.y + item.h / 2
-        return `<g class="plan-entity" data-index="${index}"><rect class="drawn-room" x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}"/><text class="drawn-room-label" x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle">${item.label}</text></g>`
-      }
-      return `<line class="drawn-wall plan-entity" data-index="${index}" x1="${item.x1}" y1="${item.y1}" x2="${item.x2}" y2="${item.y2}"/>`
+  let activeRoomId = project.rooms[0].id
+  const $ = selector => document.querySelector(selector)
+  const room = () => project.rooms.find(item => item.id === activeRoomId)
+  const save = () => { saveProject(project); $('#project-save-state').textContent = 'Сохранено' }
+  const render = () => {
+    const current = room()
+    $('#project-name').value = project.name
+    $('#project-region').value = project.region
+    $('#room-select').innerHTML = project.rooms.map(item => `<option value="${safe(item.id)}">${safe(item.name)}</option>`).join('')
+    $('#room-select').value = activeRoomId
+    $('#room-name').value = current.name
+    $('#room-length').value = current.length
+    $('#room-width').value = current.width
+    $('#room-height').value = current.height
+    $('#plan-room-title').textContent = current.name
+    $('#opening-list').innerHTML = current.openings.map(item => `<div class="opening-row"><span class="opening-symbol ${item.type}">${item.type === 'door' ? '↗' : '▤'}</span><span><strong>${item.type === 'door' ? 'Дверь' : 'Окно'} · ${safe({north:'северная',east:'восточная',south:'южная',west:'западная'}[item.wall])}</strong><small>${num(item.width)} × ${num(item.height)} м · ${num(item.width * item.height)} м²</small></span><button type="button" aria-label="Удалить проём" data-remove-opening="${safe(item.id)}">×</button></div>`).join('') || '<p class="empty-openings">Добавьте окна и двери, чтобы точнее рассчитать отделку стен.</p>'
+    const scale = Math.min(360 / current.length, 240 / current.width)
+    const width = current.length * scale
+    const height = current.width * scale
+    const openings = current.openings.map((item, index) => {
+      const vertical = item.wall === 'west' || item.wall === 'east'
+      const size = Math.min((vertical ? height : width) - 20, item.width * scale)
+      if (vertical) return `<rect x="${item.wall === 'west' ? 16 : width + 16}" y="${28 + (index * 42) % Math.max(1, height - size)}" width="8" height="${size}" rx="2" class="plan-opening ${item.type}"/>`
+      const x = 28 + (index * 48) % Math.max(1, width - size)
+      return `<rect x="${x}" y="${item.wall === 'north' ? 15 : height + 15}" width="${size}" height="8" rx="2" class="plan-opening ${item.type}"/>`
     }).join('')
-    roomCount.textContent = `Помещений: ${planItems.filter(item => item.kind === 'room').length}`
+    $('#plan-preview').innerHTML = `<svg viewBox="0 0 ${width + 52} ${height + 55}" role="img" aria-label="План комнаты ${safe(current.name)}, ${num(current.length)} на ${num(current.width)} метров"><defs><pattern id="plan-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#e8e9e2" stroke-width=".8"/></pattern></defs><rect width="100%" height="100%" fill="url(#plan-grid)"/><rect x="20" y="15" width="${width}" height="${height}" class="plan-room-shape"/><g class="plan-room-label"><text x="${width / 2 + 20}" y="${height / 2 + 12}">${safe(current.name)}</text><text x="${width / 2 + 20}" y="${height / 2 + 34}">${num(current.length)} × ${num(current.width)} м</text></g>${openings}<text x="${width / 2 + 20}" y="${height + 43}" class="plan-dimension">${num(current.length)} м</text><text transform="translate(10 ${height / 2 + 15}) rotate(-90)" class="plan-dimension">${num(current.width)} м</text></svg>`
+    const areas = projectAreas(project)
+    $('#area-cards').innerHTML = `<div><span>Пол</span><strong>${num(areas.floor)} <i>м²</i></strong></div><div><span>Стены с вычетом проёмов</span><strong>${num(areas.walls)} <i>м²</i></strong></div><div><span>Потолок</span><strong>${num(areas.ceiling)} <i>м²</i></strong></div>`
+    $('#version-list').innerHTML = project.versions.slice().reverse().map((version, index) => `<div class="version-item"><span>Версия ${project.versions.length - index} · ${safe(version.name)}</span><button type="button" data-restore-version="${safe(version.createdAt)}">Восстановить</button><small>${new Date(version.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</small></div>`).join('') || '<span class="version-empty">Пока нет сохранённых версий</span>'
   }
-
-  function snapshot() {
-    history.push(JSON.stringify(planItems))
-    undoButton.disabled = false
-  }
-
-  function setTool(tool) {
-    activeTool = tool
-    document.querySelectorAll('.tool-button').forEach(button => {
-      const selected = button.dataset.tool === tool
-      button.classList.toggle('is-active', selected)
-      button.setAttribute('aria-pressed', String(selected))
-    })
-    document.querySelector('#editor-hint').textContent = tool === 'wall'
-      ? 'Перетащите указатель по сетке, чтобы провести стену.'
-      : tool === 'room'
-        ? 'Перетащите указатель по сетке, чтобы обозначить комнату.'
-        : 'Нажмите на комнату или стену, чтобы удалить её.'
-    board.classList.toggle('is-erasing', tool === 'erase')
-  }
-
-  function pointFromEvent(event) {
-    const point = board.createSVGPoint()
-    point.x = event.clientX
-    point.y = event.clientY
-    const position = point.matrixTransform(board.getScreenCTM().inverse())
-    return {
-      x: Math.max(0, Math.min(600, Math.round(position.x / 20) * 20)),
-      y: Math.max(0, Math.min(400, Math.round(position.y / 20) * 20)),
-    }
-  }
-
-  function updatePreview(point) {
-    if (!drawStart || !previewElement) return
-    if (activeTool === 'wall') {
-      const dx = point.x - drawStart.x
-      const dy = point.y - drawStart.y
-      const end = Math.abs(dx) >= Math.abs(dy) ? { x: point.x, y: drawStart.y } : { x: drawStart.x, y: point.y }
-      previewElement.setAttribute('x2', end.x)
-      previewElement.setAttribute('y2', end.y)
-    } else {
-      previewElement.setAttribute('x', Math.min(drawStart.x, point.x))
-      previewElement.setAttribute('y', Math.min(drawStart.y, point.y))
-      previewElement.setAttribute('width', Math.abs(point.x - drawStart.x))
-      previewElement.setAttribute('height', Math.abs(point.y - drawStart.y))
-    }
-  }
-
-  function finishDrawing(event) {
-    if (!drawStart) return
-    updatePreview(pointFromEvent(event))
-    if (activeTool === 'wall') {
-      const wall = {
-        kind: 'wall',
-        x1: Number(previewElement.getAttribute('x1')),
-        y1: Number(previewElement.getAttribute('y1')),
-        x2: Number(previewElement.getAttribute('x2')),
-        y2: Number(previewElement.getAttribute('y2')),
-      }
-      if (wall.x1 !== wall.x2 || wall.y1 !== wall.y2) {
-        snapshot()
-        planItems.push(wall)
-      }
-    } else {
-      const x = Number(previewElement.getAttribute('x'))
-      const y = Number(previewElement.getAttribute('y'))
-      const w = Number(previewElement.getAttribute('width'))
-      const h = Number(previewElement.getAttribute('height'))
-      if (w >= 20 && h >= 20) {
-        snapshot()
-        const roomNumber = planItems.filter(item => item.kind === 'room').length + 1
-        planItems.push({ kind: 'room', x, y, w, h, label: `Комната ${roomNumber}` })
-      }
-    }
-    drawStart = null
-    previewElement = null
-    previewLayer.replaceChildren()
-    renderPlan()
-    saveDraft()
-  }
-
-  document.querySelectorAll('.tool-button').forEach(button => button.addEventListener('click', () => setTool(button.dataset.tool)))
-  board.addEventListener('pointerdown', event => {
-    const entity = event.target.closest('[data-index]')
-    if (activeTool === 'erase') {
-      if (entity) {
-        snapshot()
-        planItems.splice(Number(entity.dataset.index), 1)
-        renderPlan()
-        saveDraft()
-      }
-      return
-    }
-    if (event.target.classList.contains('board-background') || event.target.closest('#drawing-items')) {
-      drawStart = pointFromEvent(event)
-      if (activeTool === 'wall') {
-        previewElement = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-        previewElement.setAttribute('x1', drawStart.x)
-        previewElement.setAttribute('y1', drawStart.y)
-        previewElement.setAttribute('x2', drawStart.x)
-        previewElement.setAttribute('y2', drawStart.y)
-        previewElement.setAttribute('class', 'preview-wall')
-      } else {
-        previewElement = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-        previewElement.setAttribute('x', drawStart.x)
-        previewElement.setAttribute('y', drawStart.y)
-        previewElement.setAttribute('width', 0)
-        previewElement.setAttribute('height', 0)
-        previewElement.setAttribute('class', 'preview-room')
-      }
-      previewLayer.replaceChildren(previewElement)
-      board.setPointerCapture(event.pointerId)
-    }
-  })
-  board.addEventListener('pointermove', event => { if (drawStart) updatePreview(pointFromEvent(event)) })
-  board.addEventListener('pointerup', finishDrawing)
-  board.addEventListener('pointercancel', () => {
-    drawStart = null
-    previewElement = null
-    previewLayer.replaceChildren()
-  })
-
-  undoButton.addEventListener('click', () => {
-    const previous = history.pop()
-    if (previous) planItems = JSON.parse(previous)
-    undoButton.disabled = history.length === 0
-    renderPlan()
-    saveDraft()
-  })
-  document.querySelector('[data-action="clear"]').addEventListener('click', () => {
-    if (!planItems.length) return
-    snapshot()
-    planItems = []
-    renderPlan()
-    saveDraft()
-  })
-  areaInput.addEventListener('input', () => {
-    area = Number(areaInput.value) || 0
-    saveDraft()
-  })
-  const pdfButton = document.querySelector('[data-action="download-pdf"]')
-  const pdfStatus = document.querySelector('#pdf-export-status')
-  pdfButton.addEventListener('click', async () => {
-    pdfButton.disabled = true
-    pdfStatus.textContent = 'Готовим PDF…'
-    try {
-      const { downloadPlanPdf } = await import('../lib/export-pdf.js')
-      await downloadPlanPdf(board, document.querySelector('#project-title').textContent, areaInput.value)
-      pdfStatus.textContent = 'Чертёж скачан в формате PDF.'
-    } catch (error) {
-      pdfStatus.textContent = error.message || 'Не удалось создать PDF.'
-    } finally {
-      pdfButton.disabled = false
-    }
-  })
-
-  setTool('wall')
-  renderPlan()
-  saveDraft()
+  $('#project-name').addEventListener('input', event => { project.name = event.target.value; save(); render() })
+  $('#project-region').addEventListener('change', event => { project.region = event.target.value; save() })
+  $('#room-select').addEventListener('change', event => { activeRoomId = event.target.value; render() })
+  for (const [id, key, isNumber] of [['room-name','name',false],['room-length','length',true],['room-width','width',true],['room-height','height',true]]) $(`#${id}`).addEventListener('input', event => { room()[key] = isNumber ? Number(event.target.value) : event.target.value; save(); render() })
+  $('#add-room').addEventListener('click', () => { const item = { id: crypto.randomUUID(), name: `Комната ${project.rooms.length + 1}`, length: 4, width: 3, height: 2.7, openings: [] }; project.rooms.push(item); activeRoomId = item.id; save(); render() })
+  $('#delete-room').addEventListener('click', () => { if (project.rooms.length <= 1) { project.rooms = structuredClone(DEFAULT_PROJECT.rooms); activeRoomId = project.rooms[0].id } else { project.rooms = project.rooms.filter(item => item.id !== activeRoomId); activeRoomId = project.rooms[0].id } save(); render() })
+  $('#opening-form').addEventListener('submit', event => { event.preventDefault(); const opening = { id: crypto.randomUUID(), type: $('#opening-type').value, wall: $('#opening-wall').value, width: Number($('#opening-width').value), height: Number($('#opening-height').value) }; if (!(opening.width > 0 && opening.height > 0)) return; room().openings.push(opening); save(); render() })
+  $('#opening-list').addEventListener('click', event => { const button = event.target.closest('[data-remove-opening]'); if (!button) return; room().openings = room().openings.filter(item => item.id !== button.dataset.removeOpening); save(); render() })
+  $('#save-version').addEventListener('click', () => { project.versions.push({ createdAt: new Date().toISOString(), rooms: structuredClone(project.rooms), name: project.name }); save(); render() })
+  $('#version-list').addEventListener('click', event => { const button = event.target.closest('[data-restore-version]'); if (!button) return; const version = project.versions.find(item => item.createdAt === button.dataset.restoreVersion); if (!version) return; project.rooms = structuredClone(version.rooms); project.name = version.name; activeRoomId = project.rooms[0].id; save(); render() })
+  window.addEventListener('storage', event => { if (event.key === PROJECT_KEY) Object.assign(project, readProject()) })
+  render(); save()
 }
