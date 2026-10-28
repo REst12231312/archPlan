@@ -1,4 +1,5 @@
 import { findTemplate } from '../data/templates.js'
+import { ACTIVE_PROJECT_KEY, apiRequest, hasSession } from '../lib/api.js'
 import { DEFAULT_PROJECT, PROJECT_KEY, projectAreas, readProject, saveProject } from '../lib/project.js'
 
 const safe = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
@@ -28,6 +29,7 @@ export function initEditorPage() {
   let project = readProject()
   const selectedTemplate = findTemplate(new URLSearchParams(location.search).get('template'))
   if (selectedTemplate) {
+    localStorage.removeItem(ACTIVE_PROJECT_KEY)
     const shapeArea = selectedTemplate.rooms.reduce((total, item) => total + item.w * item.h, 0)
     const scale = Math.sqrt(selectedTemplate.area / shapeArea)
     project = { name: selectedTemplate.name, region: project.region, versions: [], rooms: selectedTemplate.rooms.map((item, index) => ({ id: `template-${selectedTemplate.id}-${index}`, name: item.label, length: Math.round(item.w * scale * 100) / 100, width: Math.round(item.h * scale * 100) / 100, height: 2.7, openings: [] })) }
@@ -37,7 +39,23 @@ export function initEditorPage() {
   let activeRoomId = project.rooms[0].id
   const $ = selector => document.querySelector(selector)
   const room = () => project.rooms.find(item => item.id === activeRoomId)
-  const save = () => { saveProject(project); $('#project-save-state').textContent = 'Сохранено' }
+  let cloudSaveTimer
+  const save = () => {
+    saveProject(project)
+    const cloudId = localStorage.getItem(ACTIVE_PROJECT_KEY)
+    if (!hasSession() || !cloudId || project.id !== cloudId) {
+      $('#project-save-state').textContent = 'Сохранено на устройстве'
+      return
+    }
+    $('#project-save-state').textContent = 'Синхронизируем…'
+    clearTimeout(cloudSaveTimer)
+    cloudSaveTimer = setTimeout(async () => {
+      try {
+        await apiRequest(`/projects/${cloudId}`, { method: 'PUT', body: { project } })
+        $('#project-save-state').textContent = 'Сохранено в аккаунте'
+      } catch (error) { $('#project-save-state').textContent = `Сохранено локально · ${error.message}` }
+    }, 700)
+  }
   const render = () => {
     const current = room()
     $('#project-name').value = project.name
@@ -63,7 +81,7 @@ export function initEditorPage() {
     $('#plan-preview').innerHTML = `<svg viewBox="0 0 ${width + 52} ${height + 55}" role="img" aria-label="План комнаты ${safe(current.name)}, ${num(current.length)} на ${num(current.width)} метров"><defs><pattern id="plan-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#e8e9e2" stroke-width=".8"/></pattern></defs><rect width="100%" height="100%" fill="url(#plan-grid)"/><rect x="20" y="15" width="${width}" height="${height}" class="plan-room-shape"/><g class="plan-room-label"><text x="${width / 2 + 20}" y="${height / 2 + 12}">${safe(current.name)}</text><text x="${width / 2 + 20}" y="${height / 2 + 34}">${num(current.length)} × ${num(current.width)} м</text></g>${openings}<text x="${width / 2 + 20}" y="${height + 43}" class="plan-dimension">${num(current.length)} м</text><text transform="translate(10 ${height / 2 + 15}) rotate(-90)" class="plan-dimension">${num(current.width)} м</text></svg>`
     const areas = projectAreas(project)
     $('#area-cards').innerHTML = `<div><span>Пол</span><strong>${num(areas.floor)} <i>м²</i></strong></div><div><span>Стены с вычетом проёмов</span><strong>${num(areas.walls)} <i>м²</i></strong></div><div><span>Потолок</span><strong>${num(areas.ceiling)} <i>м²</i></strong></div>`
-    $('#version-list').innerHTML = project.versions.slice().reverse().map((version, index) => `<div class="version-item"><span>Версия ${project.versions.length - index} · ${safe(version.name)}</span><button type="button" data-restore-version="${safe(version.createdAt)}">Восстановить</button><small>${new Date(version.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</small></div>`).join('') || '<span class="version-empty">Пока нет сохранённых версий</span>'
+    $('#version-list').innerHTML = project.versions.slice().reverse().map((version, index) => `<div class="version-item"><span>Версия ${version.number || project.versions.length - index} · ${safe(version.snapshot?.name || version.name || project.name)}</span><button type="button" data-restore-version="${safe(version.id || version.createdAt)}">Восстановить</button><small>${new Date(version.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</small></div>`).join('') || '<span class="version-empty">Пока нет сохранённых версий</span>'
   }
   $('#project-name').addEventListener('input', event => { project.name = event.target.value; save(); render() })
   $('#project-region').addEventListener('change', event => { project.region = event.target.value; save() })
@@ -73,8 +91,24 @@ export function initEditorPage() {
   $('#delete-room').addEventListener('click', () => { if (project.rooms.length <= 1) { project.rooms = structuredClone(DEFAULT_PROJECT.rooms); activeRoomId = project.rooms[0].id } else { project.rooms = project.rooms.filter(item => item.id !== activeRoomId); activeRoomId = project.rooms[0].id } save(); render() })
   $('#opening-form').addEventListener('submit', event => { event.preventDefault(); const opening = { id: crypto.randomUUID(), type: $('#opening-type').value, wall: $('#opening-wall').value, width: Number($('#opening-width').value), height: Number($('#opening-height').value) }; if (!(opening.width > 0 && opening.height > 0)) return; room().openings.push(opening); save(); render() })
   $('#opening-list').addEventListener('click', event => { const button = event.target.closest('[data-remove-opening]'); if (!button) return; room().openings = room().openings.filter(item => item.id !== button.dataset.removeOpening); save(); render() })
-  $('#save-version').addEventListener('click', () => { project.versions.push({ createdAt: new Date().toISOString(), rooms: structuredClone(project.rooms), name: project.name }); save(); render() })
-  $('#version-list').addEventListener('click', event => { const button = event.target.closest('[data-restore-version]'); if (!button) return; const version = project.versions.find(item => item.createdAt === button.dataset.restoreVersion); if (!version) return; project.rooms = structuredClone(version.rooms); project.name = version.name; activeRoomId = project.rooms[0].id; save(); render() })
+  $('#save-version').addEventListener('click', async () => {
+    const cloudId = localStorage.getItem(ACTIVE_PROJECT_KEY)
+    if (hasSession() && cloudId && project.id === cloudId) {
+      try { const { version } = await apiRequest(`/projects/${cloudId}/versions`, { method: 'POST' }); project.versions.push(version) }
+      catch (error) { $('#project-save-state').textContent = error.message; return }
+    } else project.versions.push({ createdAt: new Date().toISOString(), rooms: structuredClone(project.rooms), name: project.name })
+    save(); render()
+  })
+  $('#version-list').addEventListener('click', event => {
+    const button = event.target.closest('[data-restore-version]'); if (!button) return
+    const version = project.versions.find(item => (item.id || item.createdAt) === button.dataset.restoreVersion); if (!version) return
+    const snapshot = version.snapshot || version
+    project.rooms = structuredClone(snapshot.rooms); project.name = snapshot.name || project.name; activeRoomId = project.rooms[0].id; save(); render()
+  })
   window.addEventListener('storage', event => { if (event.key === PROJECT_KEY) Object.assign(project, readProject()) })
   render(); save()
+  const cloudId = localStorage.getItem(ACTIVE_PROJECT_KEY)
+  if (hasSession() && cloudId === project.id) {
+    apiRequest(`/projects/${cloudId}/versions`).then(({ items }) => { project.versions = items; render() }).catch(() => {})
+  }
 }
