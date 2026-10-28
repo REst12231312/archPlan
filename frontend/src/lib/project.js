@@ -30,11 +30,16 @@ export function roomAreas(room) {
 }
 
 export function projectAreas(project) {
-  return project.rooms.reduce((total, room) => {
+  const areas = project.rooms.reduce((total, room) => {
     const areas = roomAreas(room)
     total.floor += areas.floor
     total.walls += areas.walls
     total.ceiling += areas.ceiling
     return total
   }, { floor: 0, walls: 0, ceiling: 0 })
+  areas.walls += (project.walls || []).reduce((total, wall) => {
+    const length = Math.hypot((Number(wall.x2) || 0) - (Number(wall.x) || 0), (Number(wall.y2) || 0) - (Number(wall.y) || 0))
+    return total + length * (Number(wall.height) || 2.7) * 2
+  }, 0)
+  return areas
 }
