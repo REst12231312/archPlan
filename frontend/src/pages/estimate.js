@@ -1,142 +1,70 @@
-import { calculateEstimate, estimateWallArea, formatMoney, formatQuantity } from '../lib/estimate.js'
+import { calculateProjectEstimate, formatMoney, formatQuantity } from '../lib/estimate.js'
+import { projectAreas, readProject } from '../lib/project.js'
 
-const AREA_KEY = 'archplan:floor-area'
-const SETTINGS_KEY = 'archplan:estimate-settings'
+const SETTINGS_KEY = 'archplan:estimate-settings:v2'
+const areaLabel = { floor: 'Площадь пола', walls: 'Площадь стен', ceiling: 'Площадь потолка' }
 
 export function renderEstimatePage() {
-  return `
-    <main class="page-main estimate-page">
-      <section class="page-hero section-wrap estimate-page-hero">
-        <div class="eyebrow"><span class="eyebrow-dot"></span> ПЛАНИРУЙТЕ ПОКУПКИ</div>
-        <h1>Смета на основные<br /><span class="serif-accent">материалы.</span></h1>
-        <p>Измените площадь помещения и цены под свой магазин, чтобы получить примерный расход и сумму.</p>
-      </section>
-      <section class="estimate-page-content section-wrap">
-        <div class="estimate-tool estimate-page-tool" aria-labelledby="estimate-title">
-          <div class="estimate-tool-heading"><div><span class="gallery-kicker">ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ</span><h2 id="estimate-title">Параметры и стоимость</h2><p>Примерные цены заполнены заранее. Изменяйте их — расчёт обновится автоматически.</p></div><div class="estimate-total-badge"><span>ПРИМЕРНАЯ СТОИМОСТЬ</span><strong id="estimate-grand-total">—</strong></div></div>
-          <div class="estimate-tool-grid">
-            <div class="estimate-inputs">
-              <div class="estimate-input-heading"><strong>Параметры помещения</strong><span>Можно изменить</span></div>
-              <label class="estimate-field"><span>Площадь пола</span><span class="input-with-unit"><input id="estimate-floor-area" type="number" min="1" max="1000" step="0.1" value="38" inputmode="decimal"><i>м²</i></span></label>
-              <label class="estimate-field"><span>Высота стен</span><span class="input-with-unit"><input id="estimate-ceiling-height" type="number" min="2" max="6" step="0.1" value="2.7" inputmode="decimal"><i>м</i></span></label>
-              <label class="estimate-field"><span>Площадь стен</span><span class="input-with-unit"><input id="estimate-wall-area" type="number" min="1" max="3000" step="0.1" value="98.8" inputmode="decimal"><i>м²</i></span></label>
-              <button type="button" class="auto-wall-button" data-action="auto-walls">↻ Рассчитать площадь стен автоматически</button>
-              <p class="estimate-method">Автооценка стен: площадь пола × 2,6 × высота стен / 2,7. Уточните значение, если знаете точную площадь.</p>
-            </div>
-            <div class="estimate-results">
-              <div class="estimate-input-heading"><strong>Материалы и цены</strong><span>Цены в тенге</span></div>
-              <div class="estimate-result-row"><div><strong>Напольное покрытие</strong><small>с запасом 10%</small></div><span class="result-quantity" id="floor-quantity">—</span><label class="price-input"><input id="floor-price" type="number" min="0" step="100" value="8800" aria-label="Цена напольного покрытия в тенге за квадратный метр"><span>₸ / м²</span></label><b id="floor-total">—</b></div>
-              <div class="estimate-result-row"><div><strong>Краска для стен</strong><small>2 слоя, запас 10%</small></div><span class="result-quantity" id="paint-quantity">—</span><label class="price-input"><input id="paint-price" type="number" min="0" step="100" value="3900" aria-label="Цена краски в тенге за литр"><span>₸ / л</span></label><b id="paint-total">—</b></div>
-              <div class="estimate-result-row"><div><strong>Грунтовка</strong><small>расход 10 м² на литр</small></div><span class="result-quantity" id="primer-quantity">—</span><label class="price-input"><input id="primer-price" type="number" min="0" step="100" value="1200" aria-label="Цена грунтовки в тенге за литр"><span>₸ / л</span></label><b id="primer-total">—</b></div>
-              <div class="estimate-summary"><span>Итого по выбранным материалам</span><strong id="estimate-summary-total">—</strong></div>
-            </div>
-          </div>
-          <p class="estimate-disclaimer">Для собственного эскиза укажите фактическую площадь вручную: рисунок пока не имеет реального масштаба. Расчёт краски предполагает покрытие 10 м² на литр в один слой. Это ориентир для планирования; расход зависит от геометрии, дверей и окон и свойств материалов. Работа мастеров и доставка не включены.</p>
-          <div class="estimate-export-row"><p>Скачайте расчёт, чтобы сохранить его или изменить цены и формулы в Excel.</p><button type="button" class="editor-download" data-action="download-xlsx">Скачать смету в Excel <span aria-hidden="true">↓</span></button></div>
-          <p class="export-status" id="estimate-export-status" role="status" aria-live="polite"></p>
-        </div>
-        <div class="estimate-next-step"><span>Эскиз уже готов?</span><a href="/editor.html">Вернуться в конструктор <span aria-hidden="true">→</span></a></div>
-      </section>
-    </main>`
+  return `<main class="page-main estimate-page project-estimate-page">
+    <section class="page-hero section-wrap estimate-page-hero"><div class="eyebrow"><span class="eyebrow-dot"></span> ПРОЗРАЧНЫЙ РАСЧЁТ</div><h1>Что купить<br><span class="serif-accent">для ремонта.</span></h1><p>Площади берутся из проекта. Количество округляется до целых упаковок, цены можно заменить на свои.</p></section>
+    <section class="estimate-page-content section-wrap"><div class="estimate-tool estimate-page-tool project-estimate-tool" aria-labelledby="estimate-title">
+      <div class="estimate-tool-heading"><div><span class="gallery-kicker">${readProject().region.toUpperCase()} · ОРИЕНТИРОВОЧНЫЕ ЦЕНЫ</span><h2 id="estimate-title">Материалы и стоимость</h2><p id="estimate-project-name"></p></div><div class="estimate-total-badge"><span>ВСЕГО ПО МАТЕРИАЛАМ</span><strong id="estimate-grand-total">—</strong></div></div>
+      <div class="estimate-area-strip" id="estimate-areas"></div>
+      <div class="estimate-table-wrap"><table class="estimate-table"><thead><tr><th>Материал</th><th>Расчёт с запасом</th><th>Закупка</th><th>Цена упаковки</th><th>Стоимость</th></tr></thead><tbody id="estimate-rows"></tbody><tfoot><tr><th colspan="4">Итого по материалам</th><th id="estimate-summary-total">—</th></tr></tfoot></table></div>
+      <div class="estimate-extra-costs"><div><strong>Не включено в материалы</strong><p>Работы мастеров, доставка и расходники добавляются отдельными строками. Сейчас это ориентир только по основным покрытиям.</p></div><label>Работы, ₸ <input id="labor-cost" type="number" min="0" step="1000" value="0"></label><label>Доставка, ₸ <input id="delivery-cost" type="number" min="0" step="500" value="0"></label></div>
+      <p class="estimate-disclaimer">Формула: площадь × расход × слои × (1 + запас), затем округление вверх до упаковки. Ламинат: пачка 2,2 м². Краска: 10 м² на литр за слой, ведро 9 л. Грунтовка: 10 м² на литр, канистра 10 л. Цены ориентировочные, не связаны с каталогом магазина.</p>
+      <div class="estimate-export-row"><p>Смета сохранена в этом браузере. Скачайте файл для закупки или пересчёта.</p><div class="estimate-export-actions"><button type="button" class="editor-download" data-action="download-pdf">Скачать PDF <span aria-hidden="true">↓</span></button><button type="button" class="editor-download" data-action="download-xlsx">Скачать Excel <span aria-hidden="true">↓</span></button></div></div><p class="export-status" id="estimate-export-status" role="status" aria-live="polite"></p>
+    </div><div class="estimate-next-step"><span>Хотите изменить геометрию?</span><a href="/editor.html">Вернуться к плану <span aria-hidden="true">→</span></a></div></section>
+  </main>`
 }
 
 export function initEstimatePage() {
-  const floorAreaInput = document.querySelector('#estimate-floor-area')
-  const ceilingHeightInput = document.querySelector('#estimate-ceiling-height')
-  const wallAreaInput = document.querySelector('#estimate-wall-area')
-  const exportButton = document.querySelector('[data-action="download-xlsx"]')
-  const exportStatus = document.querySelector('#estimate-export-status')
-  let wallAreaWasEdited = false
-  let savedSettings = {}
-  try { savedSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {} } catch { savedSettings = {} }
-  const savedArea = Number(localStorage.getItem(AREA_KEY))
-  if (savedArea > 0) floorAreaInput.value = savedArea
-  if (Number(savedSettings.ceilingHeight) > 0) ceilingHeightInput.value = savedSettings.ceilingHeight
-  if (savedSettings.wallAreaWasEdited && Number(savedSettings.wallArea) > 0) {
-    wallAreaInput.value = savedSettings.wallArea
-    wallAreaWasEdited = true
-  }
-  for (const [id, key] of [['floor-price', 'floorPrice'], ['paint-price', 'paintPrice'], ['primer-price', 'primerPrice']]) {
-    if (Number.isFinite(Number(savedSettings[key])) && savedSettings[key] !== undefined) document.querySelector(`#${id}`).value = savedSettings[key]
-  }
+  const project = readProject()
+  const areas = projectAreas(project)
+  const $ = selector => document.querySelector(selector)
+  let saved = {}
+  try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {} } catch { saved = {} }
+  $('#estimate-project-name').textContent = `${project.name} · ${project.rooms.length} ${project.rooms.length === 1 ? 'помещение' : 'помещения'}`
+  $('#estimate-areas').innerHTML = Object.entries(areaLabel).map(([key, label]) => `<div><span>${label}</span><strong>${formatQuantity(areas[key])} м²</strong></div>`).join('')
+  const settings = { prices: { ...saved.prices }, wastes: { ...saved.wastes }, labor: Number(saved.labor) || 0, delivery: Number(saved.delivery) || 0 }
+  $('#labor-cost').value = settings.labor
+  $('#delivery-cost').value = settings.delivery
 
-  function saveEstimateSettings() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-      ceilingHeight: Number(ceilingHeightInput.value) || 2.7,
-      wallArea: Number(wallAreaInput.value) || 0,
-      wallAreaWasEdited,
-      floorPrice: Number(document.querySelector('#floor-price').value) || 0,
-      paintPrice: Number(document.querySelector('#paint-price').value) || 0,
-      primerPrice: Number(document.querySelector('#primer-price').value) || 0,
-    }))
+  const render = () => {
+    const result = calculateProjectEstimate(areas, settings.prices, settings.wastes)
+    $('#estimate-rows').innerHTML = result.items.map(item => `<tr><td><strong>${item.name}</strong><small>${areaLabel[item.surface]} · ${item.note}</small><label class="waste-control">Запас <input type="number" min="0" max="50" step="1" value="${item.waste}" data-waste="${item.id}"> %</label></td><td>${formatQuantity(item.needed)} ${item.unit}</td><td><strong>${item.packages} уп.</strong><small>${formatQuantity(item.quantity)} ${item.unit}</small></td><td><label class="table-price"><input type="number" min="0" step="100" value="${item.price}" data-price="${item.id}" aria-label="Цена упаковки материала ${item.name}"><span>₸</span></label></td><td class="estimate-cost-cell">${formatMoney(item.cost)}</td></tr>`).join('')
+    const total = result.total + settings.labor + settings.delivery
+    $('#estimate-grand-total').textContent = formatMoney(total)
+    $('#estimate-summary-total').textContent = formatMoney(total)
+    $('.estimate-total-badge span').textContent = settings.labor || settings.delivery ? 'МАТЕРИАЛЫ, РАБОТЫ И ДОСТАВКА' : 'ВСЕГО ПО МАТЕРИАЛАМ'
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
   }
-
-  function updateWallArea() {
-    if (wallAreaWasEdited) return
-    const floorArea = Number(floorAreaInput.value) || 0
-    const height = Number(ceilingHeightInput.value) || 2.7
-    wallAreaInput.value = floorArea ? estimateWallArea(floorArea, height).toFixed(1) : ''
-  }
-
-  function updateEstimate() {
-    const result = calculateEstimate({
-      floorArea: Math.max(0, Number(floorAreaInput.value) || 0),
-      wallArea: Math.max(0, Number(wallAreaInput.value) || 0),
-      floorPrice: Math.max(0, Number(document.querySelector('#floor-price').value) || 0),
-      paintPrice: Math.max(0, Number(document.querySelector('#paint-price').value) || 0),
-      primerPrice: Math.max(0, Number(document.querySelector('#primer-price').value) || 0),
-    })
-    document.querySelector('#floor-quantity').textContent = `${formatQuantity(result.floorQuantity)} м²`
-    document.querySelector('#paint-quantity').textContent = `${result.paintQuantity} л`
-    document.querySelector('#primer-quantity').textContent = `${result.primerQuantity} л`
-    document.querySelector('#floor-total').textContent = formatMoney(result.floorCost)
-    document.querySelector('#paint-total').textContent = formatMoney(result.paintCost)
-    document.querySelector('#primer-total').textContent = formatMoney(result.primerCost)
-    document.querySelector('#estimate-grand-total').textContent = formatMoney(result.total)
-    document.querySelector('#estimate-summary-total').textContent = formatMoney(result.total)
-    saveEstimateSettings()
-  }
-
-  floorAreaInput.addEventListener('input', () => {
-    updateWallArea()
-    updateEstimate()
-    const area = Number(floorAreaInput.value)
-    if (area > 0) localStorage.setItem(AREA_KEY, String(area))
+  $('#estimate-rows').addEventListener('change', event => {
+    const input = event.target
+    if (input.dataset.price) settings.prices[input.dataset.price] = Math.max(0, Number(input.value) || 0)
+    if (input.dataset.waste) settings.wastes[input.dataset.waste] = Math.max(0, Math.min(50, Number(input.value) || 0))
+    render()
   })
-  ceilingHeightInput.addEventListener('input', () => {
-    updateWallArea()
-    updateEstimate()
-  })
-  wallAreaInput.addEventListener('input', () => {
-    wallAreaWasEdited = true
-    updateEstimate()
-  })
-  document.querySelector('[data-action="auto-walls"]').addEventListener('click', () => {
-    wallAreaWasEdited = false
-    updateWallArea()
-    updateEstimate()
-  })
-  document.querySelectorAll('#floor-price, #paint-price, #primer-price').forEach(input => input.addEventListener('input', updateEstimate))
-  exportButton.addEventListener('click', async () => {
-    exportButton.disabled = true
-    exportStatus.textContent = 'Готовим файл Excel…'
+  $('#labor-cost').addEventListener('input', event => { settings.labor = Math.max(0, Number(event.target.value) || 0); render() })
+  $('#delivery-cost').addEventListener('input', event => { settings.delivery = Math.max(0, Number(event.target.value) || 0); render() })
+  for (const format of ['pdf', 'xlsx']) $(`[data-action="download-${format}"]`).addEventListener('click', async event => {
+    const button = event.currentTarget
+    const status = $('#estimate-export-status')
+    button.disabled = true; status.textContent = 'Готовим файл Excel…'
     try {
-      const { downloadEstimateXlsx } = await import('../lib/export-xlsx.js')
-      downloadEstimateXlsx({
-        floorArea: Math.max(0, Number(floorAreaInput.value) || 0),
-        wallArea: Math.max(0, Number(wallAreaInput.value) || 0),
-        ceilingHeight: Math.max(0, Number(ceilingHeightInput.value) || 0),
-        floorPrice: Math.max(0, Number(document.querySelector('#floor-price').value) || 0),
-        paintPrice: Math.max(0, Number(document.querySelector('#paint-price').value) || 0),
-        primerPrice: Math.max(0, Number(document.querySelector('#primer-price').value) || 0),
-      })
-      exportStatus.textContent = 'Смета скачана в формате Excel.'
-    } catch (error) {
-      exportStatus.textContent = error.message || 'Не удалось создать файл Excel.'
-    } finally {
-      exportButton.disabled = false
-    }
+      const result = calculateProjectEstimate(areas, settings.prices, settings.wastes)
+      const data = { project, areas, items: result.items, total: result.total, labor: settings.labor, delivery: settings.delivery }
+      if (format === 'pdf') {
+        const { downloadEstimatePdf } = await import('../lib/export-pdf.js')
+        downloadEstimatePdf(data)
+        status.textContent = 'Смета скачана в формате PDF.'
+      } else {
+        const { downloadEstimateXlsx } = await import('../lib/export-xlsx.js')
+        downloadEstimateXlsx(data)
+        status.textContent = 'Смета скачана в формате Excel.'
+      }
+    } catch (error) { status.textContent = error.message || 'Не удалось создать файл Excel.' }
+    finally { button.disabled = false }
   })
-  updateWallArea()
-  updateEstimate()
+  render()
 }
