@@ -72,7 +72,7 @@ export function calculateEstimate(project, catalog, options = {}) {
 export function validateProject(project) {
   if (!project || typeof project !== 'object') throw new Error('Некорректные данные проекта.')
   if (typeof project.name !== 'string' || project.name.trim().length < 1 || project.name.length > 64) throw new Error('Название проекта должно содержать от 1 до 64 символов.')
-  if (typeof project.region !== 'string' || project.region.length > 80) throw new Error('Укажите регион проекта.')
+  if (typeof project.region !== 'string' || !project.region.trim() || project.region.length > 80) throw new Error('Укажите регион проекта.')
   if (!Array.isArray(project.rooms) || project.rooms.length < 1 || project.rooms.length > 50) throw new Error('В проекте должно быть от 1 до 50 комнат.')
   for (const room of project.rooms) {
     for (const key of ['length','width','height']) if (!Number.isFinite(room[key]) || room[key] <= 0 || room[key] > 100) throw new Error(`Размер «${key}» должен быть больше нуля и не превышать 100 м.`)
