@@ -126,11 +126,11 @@ export function initEditorPage() {
         if (vertical) {
           const openY = y + Math.max(4, Math.min(sideLength - size - 4, offset * sideLength - size / 2))
           const edgeX = opening.wall === 'west' ? x : x + width
-          return `<g class="plan-opening-hit ${opening.type}" data-opening-id="${safe(opening.id)}"><rect x="${edgeX - 8}" y="${openY}" width="16" height="${size}" class="plan-opening ${opening.type}"/><path d="M ${edgeX} ${openY} v ${size} M ${edgeX} ${openY + size} A ${size} ${size} 0 0 0 ${edgeX + (opening.wall === 'west' ? size : -size)} ${openY + size}" class="plan-door-swing"/></g>`
+          return `<g class="plan-opening-hit ${opening.type}" data-opening-id="${safe(opening.id)}" data-room-id="${safe(item.id)}" data-wall="${opening.wall}"><rect x="${edgeX - 8}" y="${openY}" width="16" height="${size}" class="plan-opening ${opening.type}"/><path d="M ${edgeX} ${openY} v ${size} M ${edgeX} ${openY + size} A ${size} ${size} 0 0 0 ${edgeX + (opening.wall === 'west' ? size : -size)} ${openY + size}" class="plan-door-swing"/><rect x="${edgeX - 16}" y="${openY}" width="32" height="${size}" class="opening-hit-target"/></g>`
         }
         const openX = x + Math.max(4, Math.min(sideLength - size - 4, offset * sideLength - size / 2))
         const edgeY = opening.wall === 'north' ? y : y + height
-        return `<g class="plan-opening-hit ${opening.type}" data-opening-id="${safe(opening.id)}"><rect x="${openX}" y="${edgeY - 8}" width="${size}" height="16" class="plan-opening ${opening.type}"/><path d="M ${openX} ${edgeY} h ${size} M ${openX} ${edgeY} A ${size} ${size} 0 0 1 ${openX + size} ${edgeY + (opening.wall === 'north' ? size : -size)}" class="plan-door-swing"/></g>`
+        return `<g class="plan-opening-hit ${opening.type}" data-opening-id="${safe(opening.id)}" data-room-id="${safe(item.id)}" data-wall="${opening.wall}"><rect x="${openX}" y="${edgeY - 8}" width="${size}" height="16" class="plan-opening ${opening.type}"/><path d="M ${openX} ${edgeY} h ${size} M ${openX} ${edgeY} A ${size} ${size} 0 0 1 ${openX + size} ${edgeY + (opening.wall === 'north' ? size : -size)}" class="plan-door-swing"/><rect x="${openX}" y="${edgeY - 16}" width="${size}" height="32" class="opening-hit-target"/></g>`
       }).join('')
       return `<g class="plan-room-group ${selected ? 'is-selected' : ''}" data-room-id="${safe(item.id)}"><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="2" class="plan-room-shape"/><text x="${x + width / 2}" y="${y + height / 2 - 6}" class="plan-room-name">${safe(item.name)}</text><text x="${x + width / 2}" y="${y + height / 2 + 18}" class="plan-room-size">${num(item.length)} × ${num(item.width)} м</text>${openings}</g>`
     }).join('')
@@ -163,7 +163,7 @@ export function initEditorPage() {
       button.classList.toggle('is-active', active)
       button.setAttribute('aria-pressed', String(active))
     })
-    const tips = { select: 'Выберите комнату на плане.', room: 'Нажмите и перетащите, чтобы нарисовать комнату.', wall: 'Нажмите и перетащите, чтобы провести стену.', door: 'Щёлкните рядом с краем комнаты, чтобы добавить дверь.', eraser: 'Щёлкните по комнате, двери или стене, чтобы убрать её.' }
+    const tips = { select: 'Перетаскивайте комнаты и проёмы по плану.', room: 'Нажмите и перетащите, чтобы нарисовать комнату.', wall: 'Нажмите и перетащите, чтобы провести стену.', door: 'Щёлкните рядом с краем комнаты, чтобы добавить дверь.', eraser: 'Щёлкните по комнате, двери или стене, чтобы убрать её.' }
     $('#plan-tool-tip').textContent = tips[tool]
     const svg = $('#plan-preview svg')
     if (svg) { svg.dataset.tool = tool; svg.classList.toggle('is-erasing', tool === 'eraser') }
@@ -177,6 +177,18 @@ export function initEditorPage() {
     return { x: local.x / unit, y: local.y / unit }
   }
   const roundPlan = value => Math.round(value * 20) / 20
+  const roundOffset = value => Math.round(value * 10000) / 10000
+  const openingOffset = (item, opening) => Number.isFinite(opening.offset) ? opening.offset : (item.openings.indexOf(opening) + 1) / (item.openings.length + 1)
+  const availableOpeningOffset = (item, opening, requested) => {
+    const sideLength = opening.wall === 'north' || opening.wall === 'south' ? item.length : item.width
+    const min = opening.width / (2 * sideLength), max = 1 - min
+    const clamp = value => Math.max(min, Math.min(max, value))
+    const others = item.openings.filter(entry => entry !== opening && entry.wall === opening.wall)
+    const gapFor = other => (opening.width + other.width) / (2 * sideLength)
+    const clear = candidate => others.every(other => Math.abs(openingOffset(item, other) - candidate) >= gapFor(other))
+    const candidates = [clamp(requested), ...others.flatMap(other => [clamp(openingOffset(item, other) - gapFor(other)), clamp(openingOffset(item, other) + gapFor(other))])]
+    return candidates.filter(clear).sort((a, b) => Math.abs(a - requested) - Math.abs(b - requested))[0] ?? openingOffset(item, opening)
+  }
   const findRoomAt = point => project.rooms.map((item, index) => ({ item, ...roomPosition(item, index) })).reverse().find(({ item, x, y }) => point.x >= x && point.x <= x + item.length && point.y >= y && point.y <= y + item.width)
   const addDoorAt = point => {
     const found = findRoomAt(point)
@@ -197,20 +209,44 @@ export function initEditorPage() {
     if (existing.reduce((sum, opening) => sum + opening.width, 0) + width > edge.length) { $('#plan-tool-tip').textContent = 'На этой стене больше нет места для двери.'; return }
     let offset = Math.max(width / (2 * edge.length), Math.min(1 - width / (2 * edge.length), edge.along / edge.length))
     const step = width / edge.length
-    const free = candidate => existing.every((opening, index) => {
-      const center = Number.isFinite(opening.offset) ? opening.offset : (index + 1) / (existing.length + 1)
-      return Math.abs(center - candidate) >= (width + opening.width) / (2 * edge.length)
-    })
+    const free = candidate => existing.every(opening => Math.abs(openingOffset(item, opening) - candidate) >= (width + opening.width) / (2 * edge.length))
     if (!free(offset)) {
       const candidates = Array.from({ length: Math.ceil(1 / step) }, (_, index) => Math.max(step / 2, Math.min(1 - step / 2, index * step)))
       const next = candidates.find(free)
       if (next === undefined) { $('#plan-tool-tip').textContent = 'На этой стене больше нет свободного места.'; return }
       offset = next
     }
-    item.openings.push({ id: crypto.randomUUID(), type: 'door', wall: edge.wall, width, height, offset: roundPlan(offset) })
+    item.openings.push({ id: crypto.randomUUID(), type: 'door', wall: edge.wall, width, height, offset: roundOffset(offset) })
     activeRoomId = item.id; save(); render(); setTool('door')
   }
   preview.addEventListener('pointerdown', event => {
+    if (planTool === 'select') {
+      const openingElement = event.target.closest('[data-opening-id]')
+      const roomElement = event.target.closest('[data-room-id]')
+      const svg = event.target.closest('svg')
+      if (!svg) return
+      if (openingElement) {
+        const item = project.rooms.find(entry => entry.id === openingElement.dataset.roomId)
+        const opening = item?.openings.find(entry => entry.id === openingElement.dataset.openingId)
+        if (!item || !opening) return
+        const roomIndex = project.rooms.indexOf(item)
+        const position = roomPosition(item, roomIndex)
+        const vertical = opening.wall === 'west' || opening.wall === 'east'
+        const sideLength = vertical ? item.width : item.length
+        const startOffset = openingOffset(item, opening)
+        const start = planPoint(event)
+        drawing = { type: 'move-opening', start, item, opening, roomId: item.id, startOffset, offset: startOffset, sideLength, vertical, position, element: openingElement }
+      } else if (roomElement) {
+        const item = project.rooms.find(entry => entry.id === roomElement.dataset.roomId)
+        if (!item) return
+        const position = roomPosition(item, project.rooms.indexOf(item))
+        drawing = { type: 'move-room', start: planPoint(event), item, roomId: item.id, startX: position.x, startY: position.y, element: roomElement }
+      } else return
+      event.preventDefault()
+      svg.setPointerCapture?.(event.pointerId)
+      drawing.element.classList.add('is-dragging')
+      return
+    }
     if (!['room', 'wall'].includes(planTool)) return
     const svg = event.target.closest('svg')
     if (!svg) return
@@ -223,6 +259,20 @@ export function initEditorPage() {
   preview.addEventListener('pointermove', event => {
     if (!drawing) return
     drawing.current = planPoint(event)
+    if (drawing.type === 'move-room' || drawing.type === 'move-opening') drawing.moved ||= Math.hypot(drawing.current.x - drawing.start.x, drawing.current.y - drawing.start.y) > 0.05
+    if (drawing.type === 'move-room') {
+      drawing.element.setAttribute('transform', `translate(${(drawing.current.x - drawing.start.x) * unit} ${(drawing.current.y - drawing.start.y) * unit})`)
+      return
+    }
+    if (drawing.type === 'move-opening') {
+      const coordinate = drawing.vertical ? drawing.current.y - drawing.position.y : drawing.current.x - drawing.position.x
+      const min = drawing.opening.width / (2 * drawing.sideLength)
+      const max = 1 - min
+      drawing.offset = availableOpeningOffset(drawing.item, drawing.opening, Math.max(min, Math.min(max, coordinate / drawing.sideLength)))
+      const delta = (drawing.offset - drawing.startOffset) * drawing.sideLength * unit
+      drawing.element.setAttribute('transform', drawing.vertical ? `translate(0 ${delta})` : `translate(${delta} 0)`)
+      return
+    }
     const shape = $(`#draw-preview-${drawing.tool}`)
     if (drawing.tool === 'room') {
       shape.setAttribute('x', Math.min(drawing.start.x, drawing.current.x) * unit)
@@ -241,6 +291,24 @@ export function initEditorPage() {
     }
     const draft = drawing; drawing = null
     const end = planPoint(event)
+    if (draft.type === 'move-room') {
+      activeRoomId = draft.roomId
+      $('#room-select').value = activeRoomId
+      if (draft.moved) {
+        draft.item.planX = roundPlan(draft.startX + end.x - draft.start.x)
+        draft.item.planY = roundPlan(draft.startY + end.y - draft.start.y)
+        save()
+      }
+      render(); setTool('select')
+      return
+    }
+    if (draft.type === 'move-opening') {
+      activeRoomId = draft.roomId
+      $('#room-select').value = activeRoomId
+      if (draft.moved) { draft.opening.offset = roundOffset(draft.offset); save() }
+      render(); setTool('select')
+      return
+    }
     if (draft.tool === 'room') {
       const x = Math.min(draft.start.x, end.x), y = Math.min(draft.start.y, end.y)
       const length = roundPlan(Math.abs(draft.start.x - end.x)), width = roundPlan(Math.abs(draft.start.y - end.y))
