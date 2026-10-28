@@ -230,3 +230,54 @@ export async function downloadPlanPdf(svgElement, title, area) {
   link.click()
   window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
 }
+
+export function downloadEstimatePdf(data) {
+  const width = 2400
+  const height = Math.round(width * 210 / 297)
+  const { canvas, context } = makeCanvas(width, height)
+  const moneyKzt = value => `${new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 0 }).format(value)} ₸`
+  drawPageHeader(context, 'Смета на материалы', `${data.project.name} · ${data.project.region}`)
+  context.fillStyle = '#717970'
+  context.font = '26px Arial, sans-serif'
+  context.fillText(`Пол: ${quantity(data.areas.floor)} м²   ·   Стены: ${quantity(data.areas.walls)} м²   ·   Потолок: ${quantity(data.areas.ceiling)} м²`, 135, 320, 2100)
+  const positions = [135, 930, 1310, 1710, 2050]
+  const end = 2265
+  context.fillStyle = '#425849'
+  context.fillRect(135, 390, end - 135, 62)
+  context.fillStyle = '#fff'
+  context.font = '600 24px Arial, sans-serif'
+  ;['Материал', 'Потребность', 'Закупка', 'Цена упаковки', 'Стоимость'].forEach((label, index) => context.fillText(label, positions[index] + 14, 430))
+  let y = 515
+  context.font = '25px Arial, sans-serif'
+  context.fillStyle = '#45564a'
+  for (const item of data.items) {
+    context.fillText(item.name, positions[0] + 14, y, 700)
+    context.fillText(`${quantity(item.needed)} ${item.unit}`, positions[1] + 14, y, 330)
+    context.fillText(`${item.packages} уп. · ${quantity(item.quantity)} ${item.unit}`, positions[2] + 14, y, 370)
+    context.fillText(moneyKzt(item.price), positions[3] + 14, y, 310)
+    context.fillText(moneyKzt(item.cost), positions[4] + 14, y, 300)
+    context.strokeStyle = '#e5e7e0'
+    context.beginPath(); context.moveTo(135, y + 32); context.lineTo(end, y + 32); context.stroke()
+    y += 94
+  }
+  if (data.labor) { context.fillText('Работы', positions[0] + 14, y); context.fillText(moneyKzt(data.labor), positions[4] + 14, y); y += 70 }
+  if (data.delivery) { context.fillText('Доставка', positions[0] + 14, y); context.fillText(moneyKzt(data.delivery), positions[4] + 14, y); y += 70 }
+  context.fillStyle = '#eef1eb'
+  context.fillRect(135, y - 35, end - 135, 76)
+  context.fillStyle = '#31513f'
+  context.font = '600 28px Arial, sans-serif'
+  context.fillText('ИТОГО', positions[0] + 14, y + 12)
+  context.textAlign = 'right'
+  context.fillText(moneyKzt(data.total + data.labor + data.delivery), end - 14, y + 12)
+  context.textAlign = 'left'
+  context.fillStyle = '#858d84'
+  context.font = '19px Arial, sans-serif'
+  context.fillText('Ориентировочные цены. Потребность рассчитана с запасом и округлена до целых упаковок.', 135, height - 75, 2100)
+  const pdf = buildPdf([canvasJpeg(canvas)], width, height)
+  const downloadUrl = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }))
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = `archplan-smeta-${sanitizeFilename(data.project.name)}.pdf`
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
+}
