@@ -39,7 +39,7 @@ export function initAccountPage() {
         const current = readProject()
         const linkedId = localStorage.getItem(ACTIVE_PROJECT_KEY)
         const isLinked = current.id && linkedId === current.id
-        const cloudProject = { name: current.name, region: current.region, rooms: current.rooms }
+        const cloudProject = { name: current.name, region: current.region, rooms: current.rooms, walls: current.walls || [] }
         const result = await apiRequest(isLinked ? `/projects/${linkedId}` : '/projects', { method: isLinked ? 'PUT' : 'POST', body: { project: cloudProject } })
         localStorage.setItem(ACTIVE_PROJECT_KEY, result.project.id)
         const project = result.project
