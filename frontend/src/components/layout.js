@@ -1,8 +1,7 @@
 const navigation = [
   { id: 'home', href: '/', label: 'Главная' },
   { id: 'templates', href: '/templates.html', label: 'Шаблоны' },
-  { id: 'editor', href: '/editor.html', label: 'Конструктор' },
-  { id: 'estimate', href: '/estimate.html', label: 'Смета' },
+  { id: 'editor', href: '/editor.html', label: 'План и смета' },
   { id: 'account', href: '/account.html', label: 'Мои проекты' },
   { id: 'about', href: '/about.html', label: 'О сервисе' },
 ]
@@ -30,7 +29,7 @@ export function renderFooter() {
         <span>arch<span class="brand-accent">plan</span></span>
       </a>
       <nav aria-label="Навигация в подвале">
-        <a href="/templates.html">Шаблоны</a><a href="/editor.html">Конструктор</a><a href="/estimate.html">Смета</a>
+        <a href="/templates.html">Шаблоны</a><a href="/editor.html">План и смета</a>
       </nav>
       <span>Онлайн-планирование ремонта · © 2026 ArchPlan</span>
     </footer>`
