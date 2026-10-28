@@ -1,27 +1,43 @@
 import { findTemplate } from '../data/templates.js'
 import { ACTIVE_PROJECT_KEY, apiRequest, hasSession } from '../lib/api.js'
 import { DEFAULT_PROJECT, PROJECT_KEY, projectAreas, readProject, saveProject } from '../lib/project.js'
+import { initEstimatePage, renderEstimatePanel } from './estimate.js'
 
 const safe = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
 const num = value => Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
 
 export function renderEditorPage() {
-  return `<main class="page-main editor-page project-editor">
-    <section class="editor-page-heading section-wrap"><div><div class="eyebrow"><span class="eyebrow-dot"></span> ПЛАН ПРОЕКТА</div><h1>Размеры, планировка<br><span class="serif-accent">и проёмы.</span></h1><p>Задайте размеры комнаты. Площади для сметы обновятся автоматически.</p></div><a class="text-link" href="/estimate.html">Открыть смету <span aria-hidden="true">↗</span></a></section>
-    <section class="section-wrap project-editor-grid">
-      <div class="editor-panel project-panel">
-        <div class="editor-heading"><div><span class="gallery-kicker">ПРОЕКТ</span><h2>Данные помещения</h2></div><span class="project-save-state" id="project-save-state" role="status">Сохранено</span></div>
-        <div class="project-fields"><label class="sidebar-field"><span>Название проекта</span><input id="project-name" maxlength="64"></label><label class="sidebar-field"><span>Регион</span><select id="project-region"><option>Алматы</option><option>Астана</option><option>Шымкент</option><option>Караганда</option><option>Другой</option></select></label></div>
-        <div class="room-switcher"><label class="sidebar-field"><span>Помещение</span><select id="room-select"></select></label><button class="button button-outline" id="add-room" type="button">＋ Добавить комнату</button></div>
-        <div class="room-dimensions"><label class="sidebar-field"><span>Название</span><input id="room-name" maxlength="40"></label><label class="sidebar-field"><span>Длина</span><span class="input-with-unit"><input id="room-length" type="number" min="0.1" max="50" step="0.1"><i>м</i></span></label><label class="sidebar-field"><span>Ширина</span><span class="input-with-unit"><input id="room-width" type="number" min="0.1" max="50" step="0.1"><i>м</i></span></label><label class="sidebar-field"><span>Высота стен</span><span class="input-with-unit"><input id="room-height" type="number" min="1.5" max="8" step="0.1"><i>м</i></span></label></div>
-        <div class="editor-heading opening-heading"><div><span class="gallery-kicker">ОКНА И ДВЕРИ</span><h2>Проёмы вычитаются из площади стен</h2></div></div>
-        <div class="opening-list" id="opening-list"></div>
-        <form class="opening-form" id="opening-form"><label class="sidebar-field"><span>Тип</span><select id="opening-type"><option value="door">Дверь</option><option value="window">Окно</option></select></label><label class="sidebar-field"><span>Стена</span><select id="opening-wall"><option value="north">Северная</option><option value="east">Восточная</option><option value="south">Южная</option><option value="west">Западная</option></select></label><label class="sidebar-field"><span>Ширина</span><span class="input-with-unit"><input id="opening-width" type="number" min="0.2" max="8" step="0.1" value="0.9"><i>м</i></span></label><label class="sidebar-field"><span>Высота</span><span class="input-with-unit"><input id="opening-height" type="number" min="0.2" max="5" step="0.1" value="2.1"><i>м</i></span></label><button class="button button-outline" type="submit">Добавить проём</button></form>
-        <div class="room-actions"><button type="button" class="text-link" id="delete-room">Удалить помещение</button><button type="button" class="editor-action" id="save-version">Сохранить версию</button></div>
-      </div>
-      <aside class="project-side-column"><div class="editor-panel plan-preview-panel"><div class="editor-heading"><div><span class="gallery-kicker">2D-ПЛАН</span><h2 id="plan-room-title">Гостиная</h2></div><span class="editor-scale">размеры в метрах</span></div><div class="plan-preview" id="plan-preview"></div><div class="area-cards" id="area-cards"></div><p class="estimate-method">Расчёт стен: периметр комнаты × высота − площадь окон и дверей. Межкомнатные стены пока не учитываются.</p></div>
-        <div class="sidebar-panel version-panel"><span class="gallery-kicker">ИСТОРИЯ ПРОЕКТА</span><h2>Сохранённые версии</h2><div id="version-list" class="version-list"></div><p>Черновик сохраняется автоматически в этом браузере.</p></div><a class="button button-primary project-estimate-cta" href="/estimate.html">Перейти к смете <span aria-hidden="true">→</span></a></aside>
+  return `<main class="page-main editor-page planner-app">
+    <section class="section-wrap planner-topbar">
+      <div class="planner-heading"><div class="eyebrow"><span class="eyebrow-dot"></span> РАБОЧЕЕ ПРОСТРАНСТВО</div><h1>Планировка и смета</h1></div>
+      <div class="planner-project-fields"><label class="sidebar-field"><span>Проект</span><input id="project-name" maxlength="64"></label><label class="sidebar-field"><span>Регион</span><select id="project-region"><option>Алматы</option><option>Астана</option><option>Шымкент</option><option>Караганда</option><option>Другой</option></select></label></div>
+      <span class="project-save-state" id="project-save-state" role="status">Сохранено</span>
     </section>
+    <section class="section-wrap planner-toolbar">
+      <div class="room-switcher planner-room-switcher"><label class="sidebar-field"><span>Помещение</span><select id="room-select"></select></label><button class="button button-outline" id="add-room" type="button">＋ Добавить комнату</button></div>
+      <div class="planner-toolbar-actions"><button class="editor-action" id="save-version" type="button">Сохранить версию</button><button class="button button-primary" id="open-estimate" type="button" aria-expanded="false">Открыть смету <span aria-hidden="true">↗</span></button></div>
+    </section>
+    <section class="section-wrap planner-shell">
+      <div class="editor-panel plan-preview-panel planner-canvas-card">
+        <div class="canvas-heading"><div><span class="gallery-kicker">2D-ПЛАН</span><h2 id="plan-room-title">Гостиная</h2></div><div class="canvas-heading-actions"><span class="editor-scale">масштаб по размерам</span><button class="editor-action" id="fullscreen-plan" type="button">На весь экран ⛶</button></div></div>
+        <div class="plan-preview plan-preview-large" id="plan-preview"></div>
+        <div class="area-cards" id="area-cards"></div>
+        <p class="estimate-method">Расчёт стен учитывает периметр, высоту и площадь окон и дверей.</p>
+      </div>
+      <aside class="planner-inspector">
+        <div class="editor-panel project-panel">
+          <div class="editor-heading"><div><span class="gallery-kicker">ПАРАМЕТРЫ КОМНАТЫ</span><h2>Размеры</h2></div></div>
+          <div class="room-dimensions"><label class="sidebar-field"><span>Название</span><input id="room-name" maxlength="40"></label><label class="sidebar-field"><span>Длина</span><span class="input-with-unit"><input id="room-length" type="number" min="0.1" max="50" step="0.1"><i>м</i></span></label><label class="sidebar-field"><span>Ширина</span><span class="input-with-unit"><input id="room-width" type="number" min="0.1" max="50" step="0.1"><i>м</i></span></label><label class="sidebar-field"><span>Высота</span><span class="input-with-unit"><input id="room-height" type="number" min="1.5" max="8" step="0.1"><i>м</i></span></label></div>
+          <div class="editor-heading opening-heading"><div><span class="gallery-kicker">ОКНА И ДВЕРИ</span><h2>Проёмы</h2></div></div>
+          <div class="opening-list" id="opening-list"></div>
+          <form class="opening-form" id="opening-form"><label class="sidebar-field"><span>Тип</span><select id="opening-type"><option value="door">Дверь</option><option value="window">Окно</option></select></label><label class="sidebar-field"><span>Стена</span><select id="opening-wall"><option value="north">Северная</option><option value="east">Восточная</option><option value="south">Южная</option><option value="west">Западная</option></select></label><label class="sidebar-field"><span>Ширина</span><span class="input-with-unit"><input id="opening-width" type="number" min="0.2" max="8" step="0.1" value="0.9"><i>м</i></span></label><label class="sidebar-field"><span>Высота</span><span class="input-with-unit"><input id="opening-height" type="number" min="0.2" max="5" step="0.1" value="2.1"><i>м</i></span></label><button class="button button-outline" type="submit">＋ Добавить проём</button></form>
+          <div class="room-actions"><button type="button" class="text-link" id="delete-room">Удалить комнату</button></div>
+        </div>
+        <div class="sidebar-panel version-panel"><span class="gallery-kicker">ИСТОРИЯ</span><h2>Сохранённые версии</h2><div id="version-list" class="version-list"></div></div>
+      </aside>
+    </section>
+    <div class="estimate-backdrop" id="estimate-backdrop" hidden></div>
+    <aside class="estimate-drawer" id="estimate-drawer" aria-label="Смета на материалы" hidden><div class="estimate-drawer-heading"><div><span class="gallery-kicker">РАСЧЁТ ПО ТЕКУЩЕМУ ПЛАНУ</span><h2>Смета</h2></div><button type="button" id="close-estimate" aria-label="Закрыть смету">×</button></div>${renderEstimatePanel()}</aside>
   </main>`
 }
 
@@ -42,6 +58,7 @@ export function initEditorPage() {
   let cloudSaveTimer
   const save = () => {
     saveProject(project)
+    window.dispatchEvent(new CustomEvent('archplan:project-updated', { detail: project }))
     const cloudId = localStorage.getItem(ACTIVE_PROJECT_KEY)
     if (!hasSession() || !cloudId || project.id !== cloudId) {
       $('#project-save-state').textContent = 'Сохранено на устройстве'
@@ -68,7 +85,7 @@ export function initEditorPage() {
     $('#room-height').value = current.height
     $('#plan-room-title').textContent = current.name
     $('#opening-list').innerHTML = current.openings.map(item => `<div class="opening-row"><span class="opening-symbol ${item.type}">${item.type === 'door' ? '↗' : '▤'}</span><span><strong>${item.type === 'door' ? 'Дверь' : 'Окно'} · ${safe({north:'северная',east:'восточная',south:'южная',west:'западная'}[item.wall])}</strong><small>${num(item.width)} × ${num(item.height)} м · ${num(item.width * item.height)} м²</small></span><button type="button" aria-label="Удалить проём" data-remove-opening="${safe(item.id)}">×</button></div>`).join('') || '<p class="empty-openings">Добавьте окна и двери, чтобы точнее рассчитать отделку стен.</p>'
-    const scale = Math.min(360 / current.length, 240 / current.width)
+    const scale = Math.min(1080 / current.length, 690 / current.width)
     const width = current.length * scale
     const height = current.width * scale
     const openings = current.openings.map((item, index) => {
@@ -78,7 +95,7 @@ export function initEditorPage() {
       const x = 28 + (index * 48) % Math.max(1, width - size)
       return `<rect x="${x}" y="${item.wall === 'north' ? 15 : height + 15}" width="${size}" height="8" rx="2" class="plan-opening ${item.type}"/>`
     }).join('')
-    $('#plan-preview').innerHTML = `<svg viewBox="0 0 ${width + 52} ${height + 55}" role="img" aria-label="План комнаты ${safe(current.name)}, ${num(current.length)} на ${num(current.width)} метров"><defs><pattern id="plan-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#e8e9e2" stroke-width=".8"/></pattern></defs><rect width="100%" height="100%" fill="url(#plan-grid)"/><rect x="20" y="15" width="${width}" height="${height}" class="plan-room-shape"/><g class="plan-room-label"><text x="${width / 2 + 20}" y="${height / 2 + 12}">${safe(current.name)}</text><text x="${width / 2 + 20}" y="${height / 2 + 34}">${num(current.length)} × ${num(current.width)} м</text></g>${openings}<text x="${width / 2 + 20}" y="${height + 43}" class="plan-dimension">${num(current.length)} м</text><text transform="translate(10 ${height / 2 + 15}) rotate(-90)" class="plan-dimension">${num(current.width)} м</text></svg>`
+    $('#plan-preview').innerHTML = `<svg viewBox="0 0 ${width + 52} ${height + 55}" role="img" aria-label="План комнаты ${safe(current.name)}, ${num(current.length)} на ${num(current.width)} метров"><defs><pattern id="plan-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#e8e9e2" stroke-width=".8"/></pattern><pattern id="plan-grid-bold" width="120" height="120" patternUnits="userSpaceOnUse"><rect width="120" height="120" fill="url(#plan-grid)"/><path d="M120 0H0V120" fill="none" stroke="#d3d9d0" stroke-width="1.3"/></pattern></defs><rect width="100%" height="100%" fill="url(#plan-grid-bold)"/><rect x="20" y="15" width="${width}" height="${height}" class="plan-room-shape"/><g class="plan-room-label"><text x="${width / 2 + 20}" y="${height / 2 + 12}">${safe(current.name)}</text><text x="${width / 2 + 20}" y="${height / 2 + 34}">${num(current.length)} × ${num(current.width)} м</text></g>${openings}<text x="${width / 2 + 20}" y="${height + 43}" class="plan-dimension">${num(current.length)} м</text><text transform="translate(10 ${height / 2 + 15}) rotate(-90)" class="plan-dimension">${num(current.width)} м</text></svg>`
     const areas = projectAreas(project)
     $('#area-cards').innerHTML = `<div><span>Пол</span><strong>${num(areas.floor)} <i>м²</i></strong></div><div><span>Стены с вычетом проёмов</span><strong>${num(areas.walls)} <i>м²</i></strong></div><div><span>Потолок</span><strong>${num(areas.ceiling)} <i>м²</i></strong></div>`
     $('#version-list').innerHTML = project.versions.slice().reverse().map((version, index) => `<div class="version-item"><span>Версия ${version.number || project.versions.length - index} · ${safe(version.snapshot?.name || version.name || project.name)}</span><button type="button" data-restore-version="${safe(version.id || version.createdAt)}">Восстановить</button><small>${new Date(version.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</small></div>`).join('') || '<span class="version-empty">Пока нет сохранённых версий</span>'
@@ -105,8 +122,28 @@ export function initEditorPage() {
     const snapshot = version.snapshot || version
     project.rooms = structuredClone(snapshot.rooms); project.name = snapshot.name || project.name; activeRoomId = project.rooms[0].id; save(); render()
   })
+  const drawer = $('#estimate-drawer')
+  const backdrop = $('#estimate-backdrop')
+  const estimateButton = $('#open-estimate')
+  const toggleEstimate = open => {
+    drawer.hidden = !open
+    backdrop.hidden = !open
+    estimateButton.setAttribute('aria-expanded', String(open))
+    document.body.classList.toggle('estimate-is-open', open)
+    history.replaceState(null, '', open ? '/editor.html?panel=estimate' : '/editor.html')
+  }
+  estimateButton.addEventListener('click', () => toggleEstimate(drawer.hidden))
+  $('#close-estimate').addEventListener('click', () => toggleEstimate(false))
+  backdrop.addEventListener('click', () => toggleEstimate(false))
+  $('#fullscreen-plan').addEventListener('click', async () => {
+    if (document.fullscreenElement) await document.exitFullscreen()
+    else await $('.planner-canvas-card').requestFullscreen()
+  })
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !drawer.hidden) toggleEstimate(false) })
   window.addEventListener('storage', event => { if (event.key === PROJECT_KEY) Object.assign(project, readProject()) })
   render(); save()
+  initEstimatePage()
+  if (new URLSearchParams(location.search).get('panel') === 'estimate') toggleEstimate(true)
   const cloudId = localStorage.getItem(ACTIVE_PROJECT_KEY)
   if (hasSession() && cloudId === project.id) {
     apiRequest(`/projects/${cloudId}/versions`).then(({ items }) => { project.versions = items; render() }).catch(() => {})
