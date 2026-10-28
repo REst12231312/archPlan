@@ -8,7 +8,6 @@ import { renderHeader, renderFooter } from './components/layout.js'
 import { renderHomePage, initHomePage } from './pages/home.js'
 import { renderTemplatesPage, initTemplatesPage } from './pages/templates.js'
 import { renderEditorPage, initEditorPage } from './pages/editor.js'
-import { renderEstimatePage, initEstimatePage } from './pages/estimate.js'
 import { renderAboutPage, initAboutPage } from './pages/about.js'
 import { renderAccountPage, initAccountPage } from './pages/account.js'
 
@@ -16,12 +15,15 @@ const pages = {
   home: [renderHomePage, initHomePage],
   templates: [renderTemplatesPage, initTemplatesPage],
   editor: [renderEditorPage, initEditorPage],
-  estimate: [renderEstimatePage, initEstimatePage],
   about: [renderAboutPage, initAboutPage],
   account: [renderAccountPage, initAccountPage],
 }
 
-const pageName = document.body.dataset.page || 'home'
+let pageName = document.body.dataset.page || 'home'
+if (pageName === 'estimate') {
+  pageName = 'editor'
+  history.replaceState(null, '', '/editor.html?panel=estimate')
+}
 const [renderPage, initPage] = pages[pageName] || pages.home
 
 document.querySelector('#app').innerHTML = `${renderHeader(pageName)}${renderPage()}${renderFooter()}`
