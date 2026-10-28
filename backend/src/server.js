@@ -123,7 +123,7 @@ async function route(request, response) {
     const createdAt = now()
     transaction(() => {
       db.prepare('INSERT INTO projects(id,owner_id,name,region,geometry_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)')
-        .run(id, user.id, project.name, project.region, JSON.stringify({ rooms: project.rooms }), createdAt, createdAt)
+        .run(id, user.id, project.name, project.region, JSON.stringify({ rooms: project.rooms, walls: project.walls || [] }), createdAt, createdAt)
       saveVersion(id, project)
     })
     return send(response, 201, { project: { id, ...project, createdAt, updatedAt: createdAt } })
@@ -141,7 +141,7 @@ async function route(request, response) {
     const next = validateProject(body.project)
     const updatedAt = now()
     db.prepare('UPDATE projects SET name=?,region=?,geometry_json=?,updated_at=? WHERE id=? AND owner_id=?')
-      .run(next.name, next.region, JSON.stringify({ rooms: next.rooms }), updatedAt, projectId, user.id)
+      .run(next.name, next.region, JSON.stringify({ rooms: next.rooms, walls: next.walls || [] }), updatedAt, projectId, user.id)
     return send(response, 200, { project: { id: projectId, ...next, createdAt: row.created_at, updatedAt } })
   }
   if (resource === 'versions' && method === 'GET' && !resourceId) {
