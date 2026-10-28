@@ -1,5 +1,5 @@
 export function geometryAreas(project) {
-  return project.rooms.reduce((sum, room) => {
+  const areas = project.rooms.reduce((sum, room) => {
     const length = Number(room.length) || 0
     const width = Number(room.width) || 0
     const height = Number(room.height) || 0
@@ -10,6 +10,11 @@ export function geometryAreas(project) {
     sum.ceiling += floor
     return sum
   }, { floor: 0, walls: 0, ceiling: 0 })
+  areas.walls += (project.walls || []).reduce((total, wall) => {
+    const length = Math.hypot((Number(wall.x2) || 0) - (Number(wall.x) || 0), (Number(wall.y2) || 0) - (Number(wall.y) || 0))
+    return total + length * (Number(wall.height) || 2.7) * 2
+  }, 0)
+  return areas
 }
 
 export function calculateMaterial(material, area, { price = material.price_kzt, waste = material.default_waste, priceSource = material.price_source } = {}) {
@@ -86,6 +91,10 @@ export function validateProject(project) {
       widthsByWall[opening.wall] += opening.width
     }
     if (Object.entries(widthsByWall).some(([wall, width]) => width > (wall === 'north' || wall === 'south' ? room.length : room.width))) throw new Error('Суммарная ширина проёмов превышает длину стены.')
+  }
+  if (project.walls !== undefined && (!Array.isArray(project.walls) || project.walls.length > 500)) throw new Error('В проекте может быть не более 500 дополнительных стен.')
+  for (const wall of project.walls || []) {
+    if (![wall.x, wall.y, wall.x2, wall.y2, wall.height].every(Number.isFinite) || [wall.x, wall.y, wall.x2, wall.y2].some(value => Math.abs(value) > 1000) || wall.height < 1.5 || wall.height > 8 || Math.hypot(wall.x2 - wall.x, wall.y2 - wall.y) < 0.25) throw new Error('Проверьте длину и высоту дополнительной стены.')
   }
   return structuredClone(project)
 }
