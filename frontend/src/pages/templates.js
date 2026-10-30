@@ -1,10 +1,16 @@
 import { ROOM_TEMPLATES } from '../data/templates.js'
 
+const SHORT_LABELS = { 'Санузел': 'С/у', 'Ванная': 'Ван.', 'Прихожая': 'Прих.', 'Гардеробная': 'Гард.', 'Кабинет': 'Каб.', 'Детская': 'Дет.', 'Кухня-гостиная': 'Кухня', 'Жилая зона': 'Жилая' }
+
 function templateCard(template) {
   const rooms = template.rooms.map(room => {
     const cx = room.x + room.w / 2
     const cy = room.y + room.h / 2
-    return `<g><rect x="${room.x}" y="${room.y}" width="${room.w}" height="${room.h}"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle">${room.label.toUpperCase()}</text></g>`
+    // Fit the label inside narrow rooms: shrink it, and fall back to an abbreviation when it is still too long.
+    const fit = label => Math.min(18, (room.w - 14) / (label.length * 0.72), room.h * 0.3)
+    const label = fit(room.label) < 16 && SHORT_LABELS[room.label] ? SHORT_LABELS[room.label] : room.label
+    const fontSize = Math.max(12, fit(label))
+    return `<g><rect x="${room.x}" y="${room.y}" width="${room.w}" height="${room.h}"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" style="font-size:${fontSize.toFixed(1)}px">${label.toUpperCase()}</text></g>`
   }).join('')
   return `
     <article class="template-card">

@@ -3,6 +3,7 @@ import './styles/planner.css'
 import './styles/estimate.css'
 import './styles/multipage.css'
 import './styles/project-mvp.css'
+import './styles/polish.css'
 
 import { renderHeader, renderFooter } from './components/layout.js'
 import { renderHomePage, initHomePage } from './pages/home.js'

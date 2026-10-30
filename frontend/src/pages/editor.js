@@ -21,11 +21,11 @@ export function renderEditorPage() {
       <div class="editor-panel plan-preview-panel planner-canvas-card">
         <div class="canvas-heading"><div><span class="gallery-kicker">2D-ПЛАН</span><h2 id="plan-room-title">Гостиная</h2></div><div class="canvas-heading-actions"><span class="editor-scale">масштаб по размерам</span><button class="editor-action" id="fullscreen-plan" type="button">На весь экран ⛶</button></div></div>
         <div class="plan-tools" role="toolbar" aria-label="Инструменты планировки">
-          <button class="plan-tool is-active" type="button" data-plan-tool="select" aria-pressed="true"><span aria-hidden="true">↖</span> Выбор</button>
-          <button class="plan-tool" type="button" data-plan-tool="room" aria-pressed="false"><span aria-hidden="true">▱</span> Комната</button>
-          <button class="plan-tool" type="button" data-plan-tool="wall" aria-pressed="false"><span aria-hidden="true">╱</span> Стена</button>
-          <button class="plan-tool" type="button" data-plan-tool="door" aria-pressed="false"><span aria-hidden="true">⌑</span> Дверь</button>
-          <button class="plan-tool" type="button" data-plan-tool="eraser" aria-pressed="false"><span aria-hidden="true">⌫</span> Ластик</button>
+          <button class="plan-tool is-active" type="button" data-plan-tool="select" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M3 2l9 5-4 1.2L6.3 13z"/></svg> Выбор</button>
+          <button class="plan-tool" type="button" data-plan-tool="room" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1"/></svg> Комната</button>
+          <button class="plan-tool" type="button" data-plan-tool="wall" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2.5 13.5l11-11"/></svg> Стена</button>
+          <button class="plan-tool" type="button" data-plan-tool="door" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 14h12M4 14V2.5h7V14"/><circle cx="9" cy="8.5" r=".6"/></svg> Дверь</button>
+          <button class="plan-tool" type="button" data-plan-tool="eraser" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-6.5 6.5H4l-2-2z"/><path d="M6 6l4 4M7.5 13.5H14"/></svg> Ластик</button>
           <span class="plan-tool-tip" id="plan-tool-tip" role="status">Выберите комнату или инструмент.</span>
         </div>
         <div class="plan-preview plan-preview-large" id="plan-preview"></div>
@@ -57,7 +57,9 @@ export function initEditorPage() {
     localStorage.removeItem(ACTIVE_PROJECT_KEY)
     const shapeArea = selectedTemplate.rooms.reduce((total, item) => total + item.w * item.h, 0)
     const scale = Math.sqrt(selectedTemplate.area / shapeArea)
-    project = { name: selectedTemplate.name, region: project.region, versions: [], walls: [], rooms: selectedTemplate.rooms.map((item, index) => ({ id: `template-${selectedTemplate.id}-${index}`, name: item.label, length: Math.round(item.w * scale * 100) / 100, width: Math.round(item.h * scale * 100) / 100, height: 2.7, openings: [] })) }
+    const meters = value => Math.round(value * scale * 100) / 100
+    const originX = Math.min(...selectedTemplate.rooms.map(item => item.x)), originY = Math.min(...selectedTemplate.rooms.map(item => item.y))
+    project = { name: selectedTemplate.name, region: project.region, versions: [], walls: [], rooms: selectedTemplate.rooms.map((item, index) => ({ id: `template-${selectedTemplate.id}-${index}`, name: item.label, length: meters(item.w), width: meters(item.h), height: 2.7, planX: 0.8 + meters(item.x - originX), planY: 0.8 + meters(item.y - originY), openings: [] })) }
     saveProject(project)
     history.replaceState(null, '', '/editor.html')
   }
@@ -113,8 +115,16 @@ export function initEditorPage() {
     })
     const allX = [...boxes.flatMap(box => [box.x, box.x + box.width]), ...project.walls.flatMap(wall => [wall.x * unit, wall.x2 * unit])]
     const allY = [...boxes.flatMap(box => [box.y, box.y + box.height]), ...project.walls.flatMap(wall => [wall.y * unit, wall.y2 * unit])]
-    const minX = Math.min(0, ...allX) - 48, minY = Math.min(0, ...allY) - 48
-    const maxX = Math.max(8 * unit, ...allX) + 48, maxY = Math.max(6 * unit, ...allY) + 48
+    let minX = Math.min(0, ...allX) - 48, minY = Math.min(0, ...allY) - 48
+    let maxX = Math.max(8 * unit, ...allX) + 48, maxY = Math.max(6 * unit, ...allY) + 48
+    // Match the viewBox to the canvas proportions so the grid fills it without empty bands.
+    const frame = $('#plan-preview')
+    const frameRatio = frame.clientWidth / frame.clientHeight
+    if (frameRatio > 0 && Number.isFinite(frameRatio)) {
+      const contentRatio = (maxX - minX) / (maxY - minY)
+      if (frameRatio > contentRatio) { const extra = (maxY - minY) * frameRatio - (maxX - minX); minX -= extra / 2; maxX += extra / 2 }
+      else { const extra = (maxX - minX) / frameRatio - (maxY - minY); minY -= extra / 2; maxY += extra / 2 }
+    }
     const roomShapes = boxes.map(({ item, x, y, width, height }) => {
       const selected = item.id === activeRoomId
       const openings = item.openings.map((opening, index) => {
@@ -383,6 +393,13 @@ export function initEditorPage() {
   window.addEventListener('storage', event => { if (event.key === PROJECT_KEY) Object.assign(project, readProject()) })
   render(); save()
   setTool('select')
+  let frameSize = ''
+  new ResizeObserver(([entry]) => {
+    const size = `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)}`
+    if (size === frameSize || drawing) return
+    frameSize = size
+    render(); setTool(planTool)
+  }).observe(preview)
   initEstimatePage()
   if (new URLSearchParams(location.search).get('panel') === 'estimate') toggleEstimate(true)
   const cloudId = localStorage.getItem(ACTIVE_PROJECT_KEY)

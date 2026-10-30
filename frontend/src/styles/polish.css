@@ -1,0 +1,41 @@
+/* Visual fixes layered over the earlier stylesheets. Keep this file imported last. */
+:root{--planner-gutter:clamp(18px,3.2vw,48px)}
+
+/* Editor: heading was laid out as a row, so the eyebrow sat beside the title */
+.planner-heading{display:block}
+.planner-heading .eyebrow{margin-bottom:9px}
+.planner-heading h1{white-space:nowrap}
+
+/* Editor: the toolbar card stretched edge to edge instead of following the page gutters */
+.planner-toolbar{width:min(calc(100% - 2 * var(--planner-gutter)),calc(1660px - 2 * var(--planner-gutter)));margin-inline:auto}
+
+/* Editor: legacy .editor-panel margin pushed the canvas and inspector 60px below the toolbar */
+.planner-shell .editor-panel{margin-top:0}
+
+/* Editor: the inspector clipped its content behind a nested scrollbar; let it flow with the page */
+.planner-inspector{max-height:none;overflow:visible}
+.planner-inspector .opening-list{max-height:none;overflow:visible}
+
+/* Editor: inline SVG tool icons */
+.plan-tool svg,.home-feature-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.home-feature-icon svg{width:20px;height:20px}
+
+/* Estimate drawer: "Сохранить смету" rendered as bare text next to filled buttons */
+.estimate-export-actions .editor-action{border:1px solid #d1d9ce;border-radius:8px;background:#fff;color:#4d654e}
+.estimate-export-actions .editor-action:not(:disabled):hover{border-color:#81967f;background:#f4f6f1}
+.estimate-export-actions .editor-download{border-radius:8px}
+
+/* Account: align the panel with the page heading and keep the form labels on one line */
+.account-content{max-width:1320px}
+.account-panel,.account-content .export-status{max-width:760px}
+.account-form{align-items:start}
+.account-form .button{margin-top:4px}
+
+@media(max-width:700px){
+  .planner-toolbar{width:calc(100% - 2 * var(--planner-gutter))}
+  .planner-room-switcher{align-items:end}
+  .planner-room-switcher>.button{height:42px;min-height:42px;align-self:end}
+}
+@media(max-width:430px){
+  .planner-heading h1{white-space:normal}
+}
